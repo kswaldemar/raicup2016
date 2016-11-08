@@ -6,10 +6,16 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 set(headers
     include/MyStrategy.h
+    include/Logger.h
+    include/ScoutingBehaviour.h
+    include/Behaviour.h
+    include/InfoPack.h
 )
 
 set(sources
     src/MyStrategy.cpp
+    src/Behaviour.cpp
+    src/ScoutingBehaviour.cpp
 )
 
 add_library(mystrategy STATIC ${sources} ${headers})
