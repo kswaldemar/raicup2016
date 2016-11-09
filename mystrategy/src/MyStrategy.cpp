@@ -4,8 +4,8 @@
 #define _USE_MATH_DEFINES
 
 #include "Logger.h"
-#include "Behaviour.h"
-#include "ScoutingBehaviour.h"
+#include "PotentialField.h"
+
 
 #include <cmath>
 #include <cstdlib>
@@ -15,16 +15,36 @@
 using namespace model;
 using namespace std;
 
-void MyStrategy::move(const Wizard& self, const World& world, const Game& game, Move& move) {
+static const int FIELD_SCALE_FACTOR = 10;
+static const int FORWARD_SPEED = 100500;
+static const int BACKWARD_SPEED = -100500;
 
+void MyStrategy::move(const Wizard& self, const World& world, const Game& game, Move& move) {
     //Initialize common used variables, on each tick start
     initialize_info_pack(self, world, game);
 
-    //Lookaround and choose behaviour
-    Behaviour *now = choose_behaviour();
-    assert(now);
-    now->update_info_pack(m_i);
-    now->behave(move);
+    static bool first_call_ever = true;
+    if (first_call_ever) {
+        first_call_ever = false;
+        m_field = std::make_unique<PotentialField>(world.getWidth(), world.getHeight(), FIELD_SCALE_FACTOR);
+    }
+
+    //PotentialField relaxation
+    m_field->relax();
+
+    //Add friendly and enemy objects to field
+    m_field->add_waypoint({200, 200});
+
+    Point2D next_pt = m_field->potential_move({self.getX(), self.getY()});
+
+    const double turn_angle = self.getAngleTo(next_pt.x, next_pt.y);
+    const double half_sector = PI / 4;
+    if (turn_angle >= -half_sector && turn_angle <= half_sector) {
+        move.setSpeed(FORWARD_SPEED);
+    }
+    move.setTurn(turn_angle);
+
+    printf("My position = (%d; %d), go to (%d; %d)\n", (int) self.getX(), (int) self.getY(), next_pt.x, next_pt.y);
 }
 
 MyStrategy::MyStrategy() { }
@@ -33,39 +53,4 @@ void MyStrategy::initialize_info_pack(const model::Wizard &self, const model::Wo
     m_i.s = &self;
     m_i.w = &world;
     m_i.g = &game;
-}
-
-Behaviour *MyStrategy::choose_behaviour() {
-    //There can be only one strategy process, so use static
-
-    /*
-     * All possible behaviours
-     */
-    constexpr uint16_t NUMBER_OF_BEHAVIOURS = 1;
-    static ScoutingBehaviour scouting;
-    //static AssaultBehaviour assault;
-    //static RetreatBehaviour retreat;
-
-    static std::array<Behaviour *, NUMBER_OF_BEHAVIOURS> all_behaviours {
-        {&scouting}
-    };
-
-    static bool only_one_time = true;
-    if (only_one_time) {
-        only_one_time = false;
-        for (auto &i: all_behaviours) {
-            i->init(m_i);
-        }
-    }
-
-    //Here smart logic to choose right behaviour, using potential fields etc.
-    int max_score = 0;
-    Behaviour *ret = nullptr;
-    for (const auto &i : all_behaviours) {
-        int score = i->get_score();
-        if (score > max_score) {
-            ret = i;
-        }
-    }
-    return ret;
 }

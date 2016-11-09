@@ -5,7 +5,9 @@
 
 #include "Strategy.h"
 #include "InfoPack.h"
-#include "Behaviour.h"
+#include "PotentialField.h"
+
+#include <memory>
 
 class MyStrategy : public Strategy {
 
@@ -21,15 +23,8 @@ private:
 
     void initialize_info_pack(const model::Wizard &self, const model::World &world, const model::Game &game);
 
-    /**
-     * Do main lookaround and choose best behaviour for that tick
-     * @return
-     */
-    Behaviour *choose_behaviour();
-
-
     InfoPack m_i;
-
+    std::unique_ptr<PotentialField> m_field = nullptr;
 };
 
 #endif
