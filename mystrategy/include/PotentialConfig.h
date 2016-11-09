@@ -4,11 +4,12 @@
 
 #pragma once
 
-/**
- * Main configuration file with potential field creation functions
- */
+#include "Vec2D.h"
+
 namespace potential {
 
-int calc_waypoint_cost(double distance_to_center);
+geom::Vec2D waypoint_attraction(const geom::Vec2D &waypoint_vector);
+
+geom::Vec2D obstacle_avoidance(double r, const geom::Vec2D &rp);
 
 }

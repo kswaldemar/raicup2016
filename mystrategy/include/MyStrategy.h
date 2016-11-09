@@ -5,7 +5,7 @@
 
 #include "Strategy.h"
 #include "InfoPack.h"
-#include "PotentialField.h"
+#include "Vec2D.h"
 
 #include <memory>
 
@@ -19,12 +19,18 @@ public:
               const model::Game& game,
               model::Move& move) override;
 
-private:
+
 
     void initialize_info_pack(const model::Wizard &self, const model::World &world, const model::Game &game);
 
+    geom::Vec2D recalculate_repelling_vector();
+    geom::Vec2D recalculate_attraction_vector();
+
+    void move_along(const geom::Vec2D &dir, model::Move &move);
+
+private:
+
     InfoPack m_i;
-    std::unique_ptr<PotentialField> m_field = nullptr;
 };
 
 #endif

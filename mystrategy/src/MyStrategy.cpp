@@ -1,10 +1,10 @@
 #include "MyStrategy.h"
 
-#define PI 3.14159265358979323846
 #define _USE_MATH_DEFINES
 
 #include "Logger.h"
-#include "PotentialField.h"
+#include "PotentialConfig.h"
+#include "Vec2D.h"
 
 
 #include <cmath>
@@ -14,43 +14,116 @@
 
 using namespace model;
 using namespace std;
+using namespace geom;
 
-static const int FIELD_SCALE_FACTOR = 10;
-static const int FORWARD_SPEED = 100500;
-static const int BACKWARD_SPEED = -100500;
+const double pi = 3.14159265358979323846;
 
-void MyStrategy::move(const Wizard& self, const World& world, const Game& game, Move& move) {
+static const int MAX_SPEED = 100500;
+
+static const double OBSTACLE_AVOIDANCE_EXTRA_RADIUS = 10;
+static const double MOVE_VECTOR_EPS = 0.00003;
+
+
+void MyStrategy::move(const Wizard &self, const World &world, const Game &game, Move &move) {
+
     //Initialize common used variables, on each tick start
     initialize_info_pack(self, world, game);
 
     static bool first_call_ever = true;
     if (first_call_ever) {
         first_call_ever = false;
-        m_field = std::make_unique<PotentialField>(world.getWidth(), world.getHeight(), FIELD_SCALE_FACTOR);
     }
 
-    //PotentialField relaxation
-    m_field->relax();
+    /*
+     * Per tick initialization
+     */
 
-    //Add friendly and enemy objects to field
-    m_field->add_waypoint({200, 200});
+    /*
+     * Calulate vectors
+     */
 
-    Point2D next_pt = m_field->potential_move({self.getX(), self.getY()});
+    Vec2D repelling = recalculate_repelling_vector();
+    Vec2D attraction = recalculate_attraction_vector();
 
-    const double turn_angle = self.getAngleTo(next_pt.x, next_pt.y);
-    const double half_sector = PI / 4;
-    if (turn_angle >= -half_sector && turn_angle <= half_sector) {
-        move.setSpeed(FORWARD_SPEED);
+    printf("Repelling vector: (%3.1lf; %3.1lf); Attractive vector: (%3.1lf; %3.1lf)\n",
+           repelling.x,
+           repelling.y,
+           attraction.x,
+           attraction.y);
+
+    Vec2D dir = repelling + attraction;
+    if (dir.len() > MOVE_VECTOR_EPS) {
+        move_along(dir, move);
     }
-    move.setTurn(turn_angle);
 
-    printf("My position = (%d; %d), go to (%d; %d)\n", (int) self.getX(), (int) self.getY(), next_pt.x, next_pt.y);
 }
 
-MyStrategy::MyStrategy() { }
+MyStrategy::MyStrategy() {
+}
 
 void MyStrategy::initialize_info_pack(const model::Wizard &self, const model::World &world, const model::Game &game) {
     m_i.s = &self;
     m_i.w = &world;
     m_i.g = &game;
+}
+
+geom::Vec2D MyStrategy::recalculate_repelling_vector() {
+    Vec2D ret{0, 0};
+
+    const double self_x = m_i.s->getX();
+    const double self_y = m_i.s->getY();
+    const double self_r = m_i.s->getRadius();
+
+    const auto &buildings = m_i.w->getBuildings();
+    const auto &wizards = m_i.w->getWizards();
+    const auto &trees = m_i.w->getTrees();
+    const auto &creeps = m_i.w->getMinions();
+
+    for (const auto &item : buildings) {
+        Vec2D rp(self_x - item.getX(), self_y - item.getY());
+        ret += potential::obstacle_avoidance(item.getRadius() + self_r + OBSTACLE_AVOIDANCE_EXTRA_RADIUS, rp);
+    }
+    for (const auto &item : wizards) {
+        if (item.isMe()) {
+            continue;
+        }
+        Vec2D rp(self_x - item.getX(), self_y - item.getY());
+        ret += potential::obstacle_avoidance(item.getRadius() + self_r + OBSTACLE_AVOIDANCE_EXTRA_RADIUS, rp);
+    }
+    for (const auto &item : trees) {
+        Vec2D rp(self_x - item.getX(), self_y - item.getY());
+        ret += potential::obstacle_avoidance(item.getRadius() + self_r + OBSTACLE_AVOIDANCE_EXTRA_RADIUS, rp);
+    }
+    for (const auto &item : creeps) {
+        Vec2D rp(self_x - item.getX(), self_y - item.getY());
+        ret += potential::obstacle_avoidance(item.getRadius() + self_r + OBSTACLE_AVOIDANCE_EXTRA_RADIUS, rp);
+    }
+
+    std::initializer_list<Vec2D> walls{
+        {m_i.s->getX(),      0},
+        {m_i.s->getX(),      m_i.w->getWidth()},
+        {0,                  m_i.s->getY()},
+        {m_i.w->getHeight(), m_i.s->getY()}
+    };
+    for (const auto &wall : walls) {
+        Vec2D rp{self_x - wall.x, self_y - wall.y};
+        ret += potential::obstacle_avoidance(self_r + OBSTACLE_AVOIDANCE_EXTRA_RADIUS, rp);
+    }
+
+    return ret;
+}
+
+geom::Vec2D MyStrategy::recalculate_attraction_vector() {
+    Vec2D waypoint{200, 200};
+    Vec2D wp_a{waypoint.x - m_i.s->getX(), waypoint.y - m_i.s->getY()};
+    Vec2D attraction = potential::waypoint_attraction(wp_a);
+    return attraction;
+}
+
+void MyStrategy::move_along(const Vec2D &dir, model::Move &move) {
+    const double turn_angle = m_i.s->getAngleTo(m_i.s->getX() + dir.x, m_i.s->getY() + dir.y);
+    if (std::abs(turn_angle) <= m_i.g->getStaffSector() / 4.0) {
+        move.setSpeed(MAX_SPEED);
+    }
+    move.setTurn(turn_angle);
 }
