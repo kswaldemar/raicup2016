@@ -26,7 +26,7 @@ public:
     geom::Vec2D recalculate_repelling_vector();
     geom::Vec2D recalculate_attraction_vector();
 
-    void move_along(const geom::Vec2D &dir, model::Move &move);
+    void move_along(const geom::Vec2D &dir, model::Move &move, bool hold_face = false);
 
 private:
 

@@ -1,31 +1,17 @@
 #include "MyStrategy.h"
-
-#define _USE_MATH_DEFINES
-
-#include "Logger.h"
 #include "PotentialConfig.h"
-#include "Vec2D.h"
 
-
-#include <cmath>
-#include <cstdlib>
-#include <array>
-#include <cassert>
 
 using namespace model;
 using namespace std;
 using namespace geom;
 
 const double pi = 3.14159265358979323846;
-
-static const int MAX_SPEED = 100500;
-
-static const double OBSTACLE_AVOIDANCE_EXTRA_RADIUS = 10;
+static const double OBSTACLE_AVOIDANCE_EXTRA_RADIUS = 0;
 static const double MOVE_VECTOR_EPS = 0.00003;
 
 
 void MyStrategy::move(const Wizard &self, const World &world, const Game &game, Move &move) {
-
     //Initialize common used variables, on each tick start
     initialize_info_pack(self, world, game);
 
@@ -53,7 +39,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
 
     Vec2D dir = repelling + attraction;
     if (dir.len() > MOVE_VECTOR_EPS) {
-        move_along(dir, move);
+        move_along(dir, move, true);
     }
 
 }
@@ -120,10 +106,33 @@ geom::Vec2D MyStrategy::recalculate_attraction_vector() {
     return attraction;
 }
 
-void MyStrategy::move_along(const Vec2D &dir, model::Move &move) {
+void MyStrategy::move_along(const Vec2D &dir, model::Move &move, bool hold_face) {
     const double turn_angle = m_i.s->getAngleTo(m_i.s->getX() + dir.x, m_i.s->getY() + dir.y);
-    if (std::abs(turn_angle) <= m_i.g->getStaffSector() / 4.0) {
-        move.setSpeed(MAX_SPEED);
+    double strafe = sin(turn_angle);
+    double f_b = cos(turn_angle);
+
+    //Checking for haste
+    const auto &statuses = m_i.s->getStatuses();
+    for (const auto &st : statuses) {
+        if (st.getType() == STATUS_HASTENED) {
+            strafe *= m_i.g->getHastenedMovementBonusFactor();
+            f_b *= m_i.g->getHastenedMovementBonusFactor();
+        }
     }
-    move.setTurn(turn_angle);
+    strafe *= m_i.g->getWizardStrafeSpeed();
+
+    if (f_b > 0) {
+        f_b *= m_i.g->getWizardForwardSpeed();
+    } else {
+        f_b *= m_i.g->getWizardBackwardSpeed();
+    }
+
+    move.setStrafeSpeed(strafe);
+    move.setSpeed(f_b);
+
+    printf("Move like %lf; %lf\n", strafe, f_b);
+
+    if (!hold_face) {
+        move.setTurn(turn_angle);
+    }
 }
