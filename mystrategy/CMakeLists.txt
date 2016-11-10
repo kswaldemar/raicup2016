@@ -4,19 +4,20 @@ project(mystrategy)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
-set(headers
-    include/MyStrategy.h
-    include/Logger.h
-    include/ScoutingBehaviour.h
-    include/Behaviour.h
-    include/InfoPack.h
-)
+#set(headers
+#    include/MyStrategy.h
+#    include/Logger.h
+#    include/InfoPack.h
+#    include/PotentialField.h
+#)
+#
+#set(sources
+#    src/MyStrategy.cpp
+#    src/PotentialField.cpp
+#)
 
-set(sources
-    src/MyStrategy.cpp
-    src/Behaviour.cpp
-    src/ScoutingBehaviour.cpp
-)
+file(GLOB sources src/*.cpp)
+file(GLOB headers include/*.h)
 
 add_library(mystrategy STATIC ${sources} ${headers})
 add_dependencies(mystrategy cppcgdk)

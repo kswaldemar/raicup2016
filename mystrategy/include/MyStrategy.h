@@ -5,7 +5,9 @@
 
 #include "Strategy.h"
 #include "InfoPack.h"
-#include "Behaviour.h"
+#include "Vec2D.h"
+
+#include <memory>
 
 class MyStrategy : public Strategy {
 
@@ -17,19 +19,18 @@ public:
               const model::Game& game,
               model::Move& move) override;
 
-private:
+
 
     void initialize_info_pack(const model::Wizard &self, const model::World &world, const model::Game &game);
 
-    /**
-     * Do main lookaround and choose best behaviour for that tick
-     * @return
-     */
-    Behaviour *choose_behaviour();
+    geom::Vec2D recalculate_repelling_vector();
+    geom::Vec2D recalculate_attraction_vector();
 
+    void move_along(const geom::Vec2D &dir, model::Move &move, bool hold_face = false);
+
+private:
 
     InfoPack m_i;
-
 };
 
 #endif
