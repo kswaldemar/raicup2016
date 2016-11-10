@@ -4,13 +4,9 @@
 
 #pragma once
 
-namespace model {
-
-class Wizard;
-class World;
-class Game;
-
-}
+#include "model/Wizard.h"
+#include "model/World.h"
+#include "model/Game.h"
 
 struct InfoPack {
     const model::Wizard* s;

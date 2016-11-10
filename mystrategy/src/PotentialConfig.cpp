@@ -29,10 +29,10 @@ inline double get_value(double field_radius, double distance_to_center, double f
 /**
  * Functions implementations
  */
-
-geom::Vec2D waypoint_attraction(const geom::Vec2D &waypoint_vector) {
-    return geom::normalize(waypoint_vector) *= WAYPOINT;
-    //return {0, 0};
+geom::Vec2D waypoint_attraction(const model::Wizard &who, const geom::Vec2D &waypoint_vector) {
+    geom::Vec2D s{waypoint_vector.x - who.getX(), waypoint_vector.y - who.getY()};
+    s = geom::normalize(s) * WAYPOINT;
+    return s;
 }
 
 geom::Vec2D obstacle_avoidance(double radius, const geom::Vec2D &rp) {

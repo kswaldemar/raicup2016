@@ -1,14 +1,13 @@
 #include "MyStrategy.h"
+#include "PathFinder.h"
 #include "PotentialConfig.h"
-
 
 using namespace model;
 using namespace std;
 using namespace geom;
 
 const double pi = 3.14159265358979323846;
-static const double OBSTACLE_AVOIDANCE_EXTRA_RADIUS = 0;
-static const double MOVE_VECTOR_EPS = 0.00003;
+static const double EPS = 0.00003;
 
 
 void MyStrategy::move(const Wizard &self, const World &world, const Game &game, Move &move) {
@@ -18,28 +17,68 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     static bool first_call_ever = true;
     if (first_call_ever) {
         first_call_ever = false;
+        m_pf = make_unique<PathFinder>(m_i);
     }
 
     /*
      * Per tick initialization
      */
 
+
+
+
+
+    enum Behaviour {
+        DO_RUNAWAY,
+        DO_ASSAULT,
+        DO_SCOUTING
+    };
+    Behaviour behaviour = DO_SCOUTING;
+
     /*
-     * Calulate vectors
+     * Calculate vectors
      */
+    Vec2D obs_avoidance = repelling_obs_avoidance_vector();
+    Vec2D en_attraction = enemy_attraction_vector();
+    const bool is_enemy_near = en_attraction.len() > EPS;
 
-    Vec2D repelling = recalculate_repelling_vector();
-    Vec2D attraction = recalculate_attraction_vector();
+    Vec2D attraction;
 
-    printf("Repelling vector: (%3.1lf; %3.1lf); Attractive vector: (%3.1lf; %3.1lf)\n",
-           repelling.x,
-           repelling.y,
-           attraction.x,
-           attraction.y);
+    //Simplest way to leave from danger
+    const int LOW_HP = 75;
+    if (self.getLife() <= LOW_HP) {
+        behaviour = DO_RUNAWAY;
+    }
 
-    Vec2D dir = repelling + attraction;
-    if (dir.len() > MOVE_VECTOR_EPS) {
-        move_along(dir, move, true);
+    if (is_enemy_near) {
+        behaviour = DO_ASSAULT;
+    }
+
+    switch (behaviour) {
+        case DO_RUNAWAY: {
+            Vec2D wp = m_pf->get_previous_waypoint();
+            attraction = potential::waypoint_attraction(self, wp);
+        }
+            break;
+        case DO_SCOUTING: {
+            Vec2D wp = m_pf->get_next_waypoint();
+            attraction = potential::waypoint_attraction(self, wp);
+        }
+            break;
+        case DO_ASSAULT: {
+        }
+                break;
+    }
+
+    //printf("Repelling vector: (%3.1lf; %3.1lf); Attractive vector: (%3.1lf; %3.1lf)\n",
+    //       repelling.x,
+    //       repelling.y,
+    //       attraction.x,
+    //       attraction.y);
+
+    Vec2D dir = obs_avoidance + attraction;
+    if (dir.len() > EPS) {
+        move_along(dir, move, is_enemy_near);
     }
 
 }
@@ -53,7 +92,7 @@ void MyStrategy::initialize_info_pack(const model::Wizard &self, const model::Wo
     m_i.g = &game;
 }
 
-geom::Vec2D MyStrategy::recalculate_repelling_vector() {
+geom::Vec2D MyStrategy::repelling_obs_avoidance_vector() {
     Vec2D ret{0, 0};
 
     const double self_x = m_i.s->getX();
@@ -67,22 +106,22 @@ geom::Vec2D MyStrategy::recalculate_repelling_vector() {
 
     for (const auto &item : buildings) {
         Vec2D rp(self_x - item.getX(), self_y - item.getY());
-        ret += potential::obstacle_avoidance(item.getRadius() + self_r + OBSTACLE_AVOIDANCE_EXTRA_RADIUS, rp);
+        ret += potential::obstacle_avoidance(item.getRadius() + self_r, rp);
     }
     for (const auto &item : wizards) {
         if (item.isMe()) {
             continue;
         }
         Vec2D rp(self_x - item.getX(), self_y - item.getY());
-        ret += potential::obstacle_avoidance(item.getRadius() + self_r + OBSTACLE_AVOIDANCE_EXTRA_RADIUS, rp);
+        ret += potential::obstacle_avoidance(item.getRadius() + self_r, rp);
     }
     for (const auto &item : trees) {
         Vec2D rp(self_x - item.getX(), self_y - item.getY());
-        ret += potential::obstacle_avoidance(item.getRadius() + self_r + OBSTACLE_AVOIDANCE_EXTRA_RADIUS, rp);
+        ret += potential::obstacle_avoidance(item.getRadius() + self_r, rp);
     }
     for (const auto &item : creeps) {
         Vec2D rp(self_x - item.getX(), self_y - item.getY());
-        ret += potential::obstacle_avoidance(item.getRadius() + self_r + OBSTACLE_AVOIDANCE_EXTRA_RADIUS, rp);
+        ret += potential::obstacle_avoidance(item.getRadius() + self_r, rp);
     }
 
     std::initializer_list<Vec2D> walls{
@@ -93,17 +132,14 @@ geom::Vec2D MyStrategy::recalculate_repelling_vector() {
     };
     for (const auto &wall : walls) {
         Vec2D rp{self_x - wall.x, self_y - wall.y};
-        ret += potential::obstacle_avoidance(self_r + OBSTACLE_AVOIDANCE_EXTRA_RADIUS, rp);
+        ret += potential::obstacle_avoidance(self_r, rp);
     }
 
     return ret;
 }
 
-geom::Vec2D MyStrategy::recalculate_attraction_vector() {
-    Vec2D waypoint{200, 200};
-    Vec2D wp_a{waypoint.x - m_i.s->getX(), waypoint.y - m_i.s->getY()};
-    Vec2D attraction = potential::waypoint_attraction(wp_a);
-    return attraction;
+geom::Vec2D MyStrategy::enemy_attraction_vector() {
+    return {0, 0};
 }
 
 void MyStrategy::move_along(const Vec2D &dir, model::Move &move, bool hold_face) {
@@ -129,8 +165,6 @@ void MyStrategy::move_along(const Vec2D &dir, model::Move &move, bool hold_face)
 
     move.setStrafeSpeed(strafe);
     move.setSpeed(f_b);
-
-    printf("Move like %lf; %lf\n", strafe, f_b);
 
     if (!hold_face) {
         move.setTurn(turn_angle);
