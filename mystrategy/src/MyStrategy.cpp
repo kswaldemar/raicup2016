@@ -34,18 +34,17 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     /*
      * Use new api
      */
-    //Vec2D wp = m_pf->get_next_waypoint();
-    //fields::LinearRingField wp_field(wp, 0, 8000, FieldsConfig::WAYPOINT_ATTRACTION);
-    //Vec2D attractive = wp_field.apply_force(self.getX(), self.getY());
+    Vec2D wp = m_pf->get_next_waypoint();
+    fields::LinearRingField wp_field(wp, 0, 8000, FieldsConfig::WAYPOINT_ATTRACTION);
+    Vec2D attractive = wp_field.apply_force(self.getX(), self.getY());
     Vec2D obs_avoid = repelling_obs_avoidance_vector();
 
-    //printf("Obstacle vector: (%3.1lf; %3.1lf); Attractive vector: (%3.1lf; %3.1lf)\n",
-    //       obs_avoid.x, obs_avoid.y, attractive.x, attractive.y);
-     printf("Obstacle vector: (%3.1lf; %3.1lf)\n", obs_avoid.x, obs_avoid.y);
+    printf("Obstacle vector: (%3.1lf; %3.1lf); Attractive vector: (%3.1lf; %3.1lf)\n",
+           obs_avoid.x, obs_avoid.y, attractive.x, attractive.y);
 
-    Vec2D dir = obs_avoid /*+ attractive*/;
+    Vec2D dir = obs_avoid + attractive;
     if (dir.len() > EPS) {
-        move_along(dir, move, false);
+        m_pf->move_along(dir, move, false);
     }
 
     return;
@@ -191,33 +190,4 @@ geom::Vec2D MyStrategy::repelling_obs_avoidance_vector() {
     }
 
     return ret;
-}
-
-void MyStrategy::move_along(const Vec2D &dir, model::Move &move, bool hold_face) {
-    const double turn_angle = m_i.s->getAngleTo(m_i.s->getX() + dir.x, m_i.s->getY() + dir.y);
-    double strafe = sin(turn_angle);
-    double f_b = cos(turn_angle);
-
-    //Checking for haste
-    const auto &statuses = m_i.s->getStatuses();
-    for (const auto &st : statuses) {
-        if (st.getType() == STATUS_HASTENED) {
-            strafe *= m_i.g->getHastenedMovementBonusFactor();
-            f_b *= m_i.g->getHastenedMovementBonusFactor();
-        }
-    }
-    strafe *= m_i.g->getWizardStrafeSpeed();
-
-    if (f_b > 0) {
-        f_b *= m_i.g->getWizardForwardSpeed();
-    } else {
-        f_b *= m_i.g->getWizardBackwardSpeed();
-    }
-
-    move.setStrafeSpeed(strafe);
-    move.setSpeed(f_b);
-
-    if (!hold_face) {
-        move.setTurn(turn_angle);
-    }
 }

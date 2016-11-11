@@ -20,13 +20,9 @@ public:
               const model::Game& game,
               model::Move& move) override;
 
-
-
     void initialize_info_pack(const model::Wizard &self, const model::World &world, const model::Game &game);
 
     geom::Vec2D repelling_obs_avoidance_vector();
-
-    void move_along(const geom::Vec2D &dir, model::Move &move, bool hold_face = false);
 
 private:
 
