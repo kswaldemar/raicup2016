@@ -2,25 +2,10 @@ cmake_minimum_required(VERSION 3.0)
 
 project(mystrategy)
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
-
-#set(headers
-#    include/MyStrategy.h
-#    include/Logger.h
-#    include/InfoPack.h
-#    include/PotentialField.h
-#)
-#
-#set(sources
-#    src/MyStrategy.cpp
-#    src/PotentialField.cpp
-#)
-
 file(GLOB sources src/*.cpp)
 file(GLOB headers include/*.h)
 
 add_library(mystrategy STATIC ${sources} ${headers})
-add_dependencies(mystrategy cppcgdk)
 
 # Strategy zip file creating
 configure_file(zipgen.sh.in ${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/zipgen.sh @ONLY)

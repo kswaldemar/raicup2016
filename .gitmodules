@@ -1,3 +1,6 @@
 [submodule "extra/local-runner"]
 	path = extra/local-runner
 	url = https://github.com/Russian-AI-Cup-2016/local-runner-ru.git
+[submodule "cpp-cgdk"]
+	path = cpp-cgdk
+	url = https://github.com/Russian-AI-Cup-2016/cpp-cgdk.git
