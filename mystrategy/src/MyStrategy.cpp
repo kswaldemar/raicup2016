@@ -1,3 +1,4 @@
+#include <cassert>
 #include "MyStrategy.h"
 #include "PathFinder.h"
 #include "PotentialConfig.h"
@@ -7,7 +8,8 @@ using namespace std;
 using namespace geom;
 
 const double pi = 3.14159265358979323846;
-static const double EPS = 0.00003;
+const double EPS = 0.00003;
+InfoPack g_info;
 
 
 void MyStrategy::move(const Wizard &self, const World &world, const Game &game, Move &move) {
@@ -24,33 +26,32 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
      * Per tick initialization
      */
 
-
-
-
-
     enum Behaviour {
         DO_RUNAWAY,
         DO_ASSAULT,
         DO_SCOUTING
     };
-    Behaviour behaviour = DO_SCOUTING;
+    Behaviour behaviour;
+
 
     /*
      * Calculate vectors
      */
     Vec2D obs_avoidance = repelling_obs_avoidance_vector();
-    Vec2D en_attraction = enemy_attraction_vector();
-    const bool is_enemy_near = en_attraction.len() > EPS;
+    const CircularUnit *best_enemy = nullptr;
+    bool assault = false;
+    Vec2D en_attraction = potential::most_attractive_enemy(m_i, best_enemy, assault);
+    const bool is_enemy_near = assault;
 
     Vec2D attraction;
 
+    behaviour = DO_SCOUTING;
     //Simplest way to leave from danger
-    const int LOW_HP = 75;
+    const int LOW_HP = 37;
     if (self.getLife() <= LOW_HP) {
         behaviour = DO_RUNAWAY;
-    }
-
-    if (is_enemy_near) {
+    } else if (is_enemy_near) {
+        assert(best_enemy);
         behaviour = DO_ASSAULT;
     }
 
@@ -66,19 +67,33 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         }
             break;
         case DO_ASSAULT: {
+            attraction += en_attraction;
+            double distance = self.getDistanceTo(*best_enemy);
+            if (distance <= self.getCastRange()) {
+                //Target near
+                double angle = self.getAngleTo(*best_enemy);
+                move.setTurn(angle);
+                if (std::abs(angle) < game.getStaffSector() / 2.0) {
+                    //Attack
+                    move.setAction(ACTION_MAGIC_MISSILE);
+                    move.setCastAngle(angle);
+                    move.setMinCastDistance(distance - best_enemy->getRadius() + game.getMagicMissileRadius());
+                }
+            }
         }
                 break;
     }
 
-    //printf("Repelling vector: (%3.1lf; %3.1lf); Attractive vector: (%3.1lf; %3.1lf)\n",
-    //       repelling.x,
-    //       repelling.y,
-    //       attraction.x,
-    //       attraction.y);
+    printf("[%d] Obstacle vector: (%3.1lf; %3.1lf); Attractive vector: (%3.1lf; %3.1lf)\n",
+           behaviour,
+           obs_avoidance.x,
+           obs_avoidance.y,
+           attraction.x,
+           attraction.y);
 
     Vec2D dir = obs_avoidance + attraction;
     if (dir.len() > EPS) {
-        move_along(dir, move, is_enemy_near);
+        move_along(dir, move, behaviour == DO_ASSAULT);
     }
 
 }
@@ -90,6 +105,10 @@ void MyStrategy::initialize_info_pack(const model::Wizard &self, const model::Wo
     m_i.s = &self;
     m_i.w = &world;
     m_i.g = &game;
+
+    g_info.s = &self;
+    g_info.w = &world;
+    g_info.g = &game;
 }
 
 geom::Vec2D MyStrategy::repelling_obs_avoidance_vector() {

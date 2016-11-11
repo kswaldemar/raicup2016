@@ -13,3 +13,5 @@ struct InfoPack {
     const model::World* w;
     const model::Game* g;
 };
+
+extern InfoPack g_info;
