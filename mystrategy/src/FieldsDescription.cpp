@@ -2,6 +2,7 @@
 // Created by valdemar on 11.11.16.
 //
 
+#include <cassert>
 #include "FieldsDescription.h"
 
 namespace fields {
@@ -22,6 +23,8 @@ geom::Vec2D LinearRingField::apply_force(double x, double y) {
 
 
 ExpConfig ExpConfig::from_two_points(double value_on_zero, double force, double distance) {
+    //Защита от передачи 0, что приведет к бесконечному коэффициенту k
+    assert(force >= 1.0);
     ExpConfig ret;
     ret.V = value_on_zero;
     ret.k = log(force / value_on_zero) / (-distance);
@@ -41,7 +44,7 @@ geom::Vec2D ExpRingField::apply_force(double x, double y) {
     geom::Vec2D v(m_center.x - x, m_center.y - y);
     double dist = v.len();
     if (dist >= m_r1 && dist <= m_r2) {
-        double mod = exp(-x * m_k + log(m_V));
+        double mod = exp(-dist * m_k + log(m_V));
         if (!m_is_attractive) {
             mod *= -mod;
         }

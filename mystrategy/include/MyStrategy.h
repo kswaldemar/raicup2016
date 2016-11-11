@@ -25,7 +25,6 @@ public:
     void initialize_info_pack(const model::Wizard &self, const model::World &world, const model::Game &game);
 
     geom::Vec2D repelling_obs_avoidance_vector();
-    geom::Vec2D enemy_attraction_vector();
 
     void move_along(const geom::Vec2D &dir, model::Move &move, bool hold_face = false);
 
