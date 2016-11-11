@@ -141,4 +141,7 @@ inline constexpr Vec2D conj(const Vec2D &v)
     return Vec2D(v.x, -v.y);
 }
 
+//Same class, but only point in map, not vector by meaning
+using Point2D = Vec2D;
+
 }

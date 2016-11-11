@@ -10,6 +10,8 @@
 
 const int PathFinder::WAYPOINT_RADIUS = 100;
 
+using geom::Point2D;
+
 PathFinder::PathFinder(const InfoPack &info) {
     m_i = &info;
 

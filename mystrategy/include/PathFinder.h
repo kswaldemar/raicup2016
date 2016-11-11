@@ -8,8 +8,6 @@
 #include "Vec2D.h"
 
 //Synonim with another meaning
-using Point2D = geom::Vec2D;
-
 /**
  * Path find and moving related class
  */
@@ -21,11 +19,11 @@ public:
 
     void update_info_pack(const InfoPack &info);
 
-    Point2D get_next_waypoint() const;
+    geom::Point2D get_next_waypoint() const;
 
-    Point2D get_previous_waypoint() const;
+    geom::Point2D get_previous_waypoint() const;
 
 private:
-    const std::vector<Point2D> *m_waypoints = nullptr;
+    const std::vector<geom::Point2D> *m_waypoints = nullptr;
     const InfoPack *m_i;
 };
