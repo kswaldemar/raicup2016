@@ -72,7 +72,10 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             if (distance <= self.getCastRange()) {
                 //Target near
                 double angle = self.getAngleTo(*best_enemy);
-                move.setTurn(angle);
+                const double very_small = 1 * (pi / 180.0);
+                if (std::abs(angle) > very_small) {
+                    move.setTurn(angle);
+                }
                 if (std::abs(angle) < game.getStaffSector() / 2.0) {
                     //Attack
                     move.setAction(ACTION_MAGIC_MISSILE);
