@@ -31,10 +31,6 @@ public:
      */
     void update_info_pack(const InfoPack &info);
 
-    int get_incoming_damage(const geom::Point2D &me, double me_radius, const model::Minion &enemy);
-    int get_incoming_damage(const geom::Point2D &me, double me_radius, const model::Building &enemy);
-    int get_incoming_damage(const geom::Point2D &me, double me_radius, const model::Wizard &enemy);
-
     int get_myself_death_time(const model::Wizard &me, const model::Minion &enemy);
     int get_myself_death_time(const model::Wizard &me, const model::Building &enemy);
     int get_myself_death_time(const model::Wizard &me, const model::Wizard &enemy);

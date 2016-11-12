@@ -23,65 +23,6 @@ void Eviscerator::update_info_pack(const InfoPack &info) {
     m_attract_field = nullptr;
 }
 
-//int Eviscerator::get_incoming_damage(const geom::Point2D &me, double me_radius, const model::Minion &enemy) {
-//    double attack_range;
-//    int cooldown;
-//    if (enemy.getType() == model::MINION_FETISH_BLOWDART) {
-//        attack_range = m_i->g->getFetishBlowdartAttackRange();
-//        cooldown = m_i->g->getFetishBlowdartActionCooldownTicks();
-//    } else {
-//        attack_range = m_i->g->getOrcWoodcutterAttackRange();
-//        cooldown = m_i->g->getOrcWoodcutterActionCooldownTicks();
-//    }
-//    attack_range += me_radius;
-//    double dist = enemy.getDistanceTo(me.x, me.y);
-//
-//    int attack_time = config::DMG_INCOME_TICKS_SIMULATION - enemy.getRemainingActionCooldownTicks();
-//    if (dist > attack_range) {
-//        attack_time -= (dist - attack_range) / m_i->g->getMinionSpeed();
-//    }
-//    int attack_count = attack_time / cooldown;
-//    attack_count = std::max(attack_count, 0);
-//    int dmg = attack_count * enemy.getDamage();
-//    return dmg;
-//}
-//
-//int Eviscerator::get_incoming_damage(const geom::Point2D &me, double me_radius, const model::Building &enemy) {
-//    double attack_range = enemy.getAttackRange();
-//    int cooldown = enemy.getCooldownTicks();
-//    attack_range += me_radius;
-//    double dist = enemy.getDistanceTo(me.x, me.y);
-//
-//    if (dist <= attack_range) {
-//        int attack_count = (config::DMG_INCOME_TICKS_SIMULATION - enemy.getRemainingActionCooldownTicks()) / cooldown;
-//        attack_count = std::max(attack_count, 0);
-//        int dmg = attack_count * enemy.getDamage();
-//        return dmg;
-//    }
-//    return 0;
-//}
-//
-//int Eviscerator::get_incoming_damage(const geom::Point2D &me, double me_radius, const model::Wizard &enemy) {
-//    double attack_range = m_i->g->getWizardCastRange();
-//    attack_range += me_radius;
-//    double dist = enemy.getDistanceTo(me.x, me.y);
-//
-//    int cooldown;
-//
-//    //Magic missile
-//    const auto &remaining_cooldowns = enemy.getRemainingCooldownTicksByAction();
-//    if (dist <= attack_range) {
-//        cooldown = m_i->g->getMagicMissileCooldownTicks();
-//        int rem_cooldown = std::max(enemy.getRemainingActionCooldownTicks(),
-//                                    remaining_cooldowns[model::ACTION_MAGIC_MISSILE]);
-//        int attack_count = (config::DMG_INCOME_TICKS_SIMULATION - rem_cooldown) / cooldown;
-//        attack_count = std::max(attack_count, 0);
-//        int dmg = attack_count * m_i->g->getMagicMissileDirectDamage();
-//        return dmg;
-//    }
-//    return 0;
-//}
-
 int Eviscerator::get_myself_death_time(const model::Wizard &me, const model::Minion &enemy) {
     double attack_range;
     int cooldown;

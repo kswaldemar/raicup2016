@@ -2,6 +2,7 @@
 #include "Config.h"
 #include "MyStrategy.h"
 #include "PathFinder.h"
+#include "Logger.h"
 #include <cassert>
 
 using namespace model;
@@ -39,28 +40,30 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     }
     last_tick = cur_tick;
 
-
-    //Move by waypoints
-    Vec2D wp_next = m_pf->get_next_waypoint();
-    Vec2D wp_prev = m_pf->get_previous_waypoint();
-    fields::ConstRingField nwp_field(wp_next, 0, 8000, config::NEXT_WAYPOINT_ATTRACTION);
-    fields::ConstRingField pwp_field(wp_prev, 0, 8000, config::PREV_WAYPOINT_ATTRACTION);
-    Vec2D waypoints{0, 0};
-    waypoints += nwp_field.apply_force(self.getX(), self.getY());
-    waypoints += pwp_field.apply_force(self.getX(), self.getY());
+    //Summary movement vector
+    Vec2D sum{0, 0};
 
     //Avoid obstacles
     Vec2D obs_avoid = repelling_obs_avoidance_vector();
-
     Vec2D damage_avoidance = repelling_damage_avoidance_vector();
 
 
     const bool have_target = m_ev->choose_enemy();
     Vec2D enemy_attraction{0, 0};
+
+    Vec2D waypoints{0, 0};
     if (have_target) {
         //Enemy choosen
         m_ev->destroy(move);
         enemy_attraction = m_ev->apply_enemy_attract_field(self);
+    } else {
+        //Move by waypoints
+        Vec2D wp_next = m_pf->get_next_waypoint();
+        Vec2D wp_prev = m_pf->get_previous_waypoint();
+        fields::ConstRingField nwp_field(wp_next, 0, 8000, config::NEXT_WAYPOINT_ATTRACTION);
+        fields::ConstRingField pwp_field(wp_prev, 0, 8000, config::PREV_WAYPOINT_ATTRACTION);
+        waypoints += nwp_field.apply_force(self.getX(), self.getY());
+        waypoints += pwp_field.apply_force(self.getX(), self.getY());
     }
 
     Vec2D dir = obs_avoid + waypoints + damage_avoidance + enemy_attraction;
@@ -69,12 +72,13 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     }
 
 
-    printf(
-        "Dir (%3.1lf; %3.1lf); "
+    LOG(
+        "[Danger %3.1lf%%] Dir (%3.1lf; %3.1lf); "
             "Obstacle vector: (%3.1lf; %3.1lf); "
             "Waypoint vector: (%3.1lf; %3.1lf); "
             "Enemy attraction vector (%3.1lf; %3.1lf); "
             "Damage avoid vector (%3.1lf; %3.1lf);\n",
+        damage_avoidance.len(),
         dir.x, dir.y,
         obs_avoid.x, obs_avoid.y,
         waypoints.x, waypoints.y,
@@ -105,13 +109,13 @@ geom::Vec2D MyStrategy::repelling_obs_avoidance_vector() {
     const auto &creeps = m_i.w->getMinions();
 
     const auto &avoid = [](double center_x, double center_y, double radius, const model::CircularUnit *who) -> Vec2D {
-        double dist = radius + who->getRadius() + config::OBS_AVOID_EXTRA_DISTANCE;
+        double dist = radius + who->getRadius();
         /*
          * В середине большое значение, зависящее от радиуса
          * (чтобы объекты с разным радиусам толкали с одинаковой силой)
          * Экспоненциальное угасание к концу
          */
-        auto cfg = fields::ExpConfig::from_two_points(config::OBS_AVOID_PEEK_KOEF * dist, 1, dist);
+        auto cfg = fields::ExpConfig::from_two_points(config::OBS_AVOID_CURVATURE, dist, 0);
         auto field = fields::ExpRingField({center_x, center_y}, 0, 8000, false, cfg);
         auto vec = field.apply_force(who->getX(), who->getY());
         //if (vec.len() > EPS) {
@@ -159,31 +163,17 @@ geom::Vec2D MyStrategy::repelling_damage_avoidance_vector() {
     const auto &add_unit_damage_fields = [&damage_fields](const Point2D &unit_center,
                                                           double attack_range,
                                                           double dead_zone_r) {
-        attack_range += config::DMG_AVOID_EXTRA_DISTANCE;
-        if (dead_zone_r > 0) {
-            //So, there is some radius from which I cannot retreat
-            damage_fields.emplace_back(
-                std::make_unique<fields::ExpRingField>(
-                    unit_center,
-                    0,
-                    8000,
-                    false,
-                    fields::ExpConfig::from_two_points(config::DEAD_PEEK_KOEF * dead_zone_r,
-                                                       config::DAMAGE_ZONE_END_FORCE,
-                                                       attack_range)
-                )
-            );
-        } else {
-            //From this place I can retreat
-            damage_fields.emplace_back(
-                std::make_unique<fields::ConstRingField>(
-                    unit_center,
-                    0,
-                    attack_range,
-                    -config::DAMAGE_ZONE_END_FORCE
-                )
-            );
-        }
+        //So, there is some radius from which I cannot retreat
+
+        damage_fields.emplace_back(
+            std::make_unique<fields::ExpRingField>(
+                unit_center,
+                0,
+                8000,
+                false,
+                fields::ExpConfig::from_two_points(config::DAMAGE_ZONE_CURVATURE, config::DAMAGE_MAX_FEAR, dead_zone_r)
+            )
+        );
     };
     for (const auto &minion : creeps) {
 

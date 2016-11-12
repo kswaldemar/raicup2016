@@ -23,12 +23,10 @@ geom::Vec2D ConstRingField::apply_force(double x, double y) const {
 }
 
 
-ExpConfig ExpConfig::from_two_points(double value_on_zero, double force, double distance) {
-    //Защита от передачи 0, что приведет к бесконечному коэффициенту k
-    assert(force >= 1.0);
+ExpConfig ExpConfig::from_two_points(double curvature, double y, double x) {
     ExpConfig ret;
-    ret.V = value_on_zero;
-    ret.k = log(force / value_on_zero) / (-distance);
+    ret.k = curvature;
+    ret.V = y * exp(x * curvature);
     return ret;
 }
 
@@ -47,9 +45,9 @@ geom::Vec2D ExpRingField::apply_force(double x, double y) const {
     geom::Vec2D v(m_center.x - x, m_center.y - y);
     double dist = v.len();
     if (dist >= m_r1 && dist <= m_r2) {
-        double mod = exp(-dist * m_k + log(m_V));
+        double mod = m_V * exp(-dist * m_k);
         if (!m_is_attractive) {
-            mod *= -mod;
+            mod = -mod;
         }
         return geom::normalize(v) * mod;
     }

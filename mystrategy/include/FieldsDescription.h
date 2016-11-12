@@ -39,7 +39,8 @@ protected:
  * F = e ^ (-x * k + ln(V))
  */
 struct ExpConfig {
-    static ExpConfig from_two_points(double value_on_zero, double force, double dist);
+    //Конфигурация по кривизне и опорной точке
+    static ExpConfig from_two_points(double curvature, double y, double x);
 
     double k;
     double V;
