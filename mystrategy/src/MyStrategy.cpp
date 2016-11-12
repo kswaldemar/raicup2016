@@ -29,6 +29,16 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     m_pf->update_info_pack(m_i);
     m_ev->update_info_pack(m_i);
 
+    //Check about our death
+    static int last_tick = 0;
+    int cur_tick = world.getTickIndex();
+    if (cur_tick - last_tick >= game.getWizardMinResurrectionDelayTicks()) {
+        //Seems ressurection
+        m_pf = make_unique<PathFinder>(m_i);
+
+    }
+    last_tick = cur_tick;
+
 
     //Move by waypoints
     Vec2D wp_next = m_pf->get_next_waypoint();

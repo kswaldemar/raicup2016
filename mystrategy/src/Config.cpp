@@ -21,7 +21,7 @@ const double ENEMY_DETECT_RANGE = 800;
 
 const double CHOOSEN_ENEMY_ATTRACT = 200;
 
-const double DEAD_PEEK_FEARING = 20000;
+const double DEAD_PEEK_FEARING = 100;
 
 const double DAMAGE_ZONE_END_FORCE = 10;
 

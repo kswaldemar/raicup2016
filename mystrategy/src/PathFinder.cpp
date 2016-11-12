@@ -7,9 +7,8 @@
 
 #include <map>
 #include <cassert>
-#include <model/Move.h>
 
-const int PathFinder::WAYPOINT_RADIUS = 5;
+const int PathFinder::WAYPOINT_RADIUS = 100;
 
 using geom::Point2D;
 

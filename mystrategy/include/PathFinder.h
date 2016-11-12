@@ -8,7 +8,6 @@
 #include "InfoPack.h"
 #include "Vec2D.h"
 
-//Synonim with another meaning
 /**
  * Path find and moving related class
  */
