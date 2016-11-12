@@ -7,6 +7,7 @@
 #include "InfoPack.h"
 #include "Vec2D.h"
 #include "PathFinder.h"
+#include "Eviscerator.h"
 
 #include <memory>
 
@@ -28,6 +29,7 @@ private:
 
     InfoPack m_i;
     std::unique_ptr<PathFinder> m_pf;
+    std::unique_ptr<Eviscerator> m_ev;
 };
 
 #endif
