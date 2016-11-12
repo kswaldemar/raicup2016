@@ -2,7 +2,6 @@
 #include "Config.h"
 #include "MyStrategy.h"
 #include "PathFinder.h"
-#include "PotentialConfig.h"
 #include <cassert>
 
 using namespace model;
