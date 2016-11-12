@@ -21,7 +21,7 @@ public:
 
     void update_info_pack(const InfoPack &info);
 
-    geom::Point2D get_next_waypoint() const;
+    geom::Point2D get_next_waypoint();
 
     geom::Point2D get_previous_waypoint() const;
 
@@ -30,4 +30,6 @@ public:
 private:
     const std::vector<geom::Point2D> *m_waypoints = nullptr;
     const InfoPack *m_i;
+
+    std::vector<geom::Point2D>::const_iterator m_next_wp, m_last_wp;
 };

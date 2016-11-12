@@ -9,7 +9,7 @@
 #include <cassert>
 #include <model/Move.h>
 
-const int PathFinder::WAYPOINT_RADIUS = 100;
+const int PathFinder::WAYPOINT_RADIUS = 5;
 
 using geom::Point2D;
 
@@ -22,6 +22,7 @@ PathFinder::PathFinder(const InfoPack &info) {
         {100, map_size - 100},
         {600, map_size - 200},
         {800, map_size - 800},
+        {map_size - 600, 600}
     };
 
     static const std::vector<Point2D> top_wp = {
@@ -71,48 +72,26 @@ PathFinder::PathFinder(const InfoPack &info) {
         break;
     }
     assert(m_waypoints);
+    m_next_wp = m_waypoints->cbegin();
+    m_last_wp = m_waypoints->cbegin();
 }
 
 void PathFinder::update_info_pack(const InfoPack &info) {
     m_i = &info;
 }
 
-Point2D PathFinder::get_next_waypoint() const {
-    using WpIter = std::vector<Point2D>::const_iterator;
-
-    WpIter last_wp = m_waypoints->cend();
-    --last_wp;
-
-    for (WpIter i = m_waypoints->cbegin(); i != last_wp; ++i) {
-        if (m_i->s->getDistanceTo(i->x, i->y) <= WAYPOINT_RADIUS) {
-            return *(++i);
-        }
-        geom::Vec2D wpdist = *last_wp - *i;
-        if (wpdist.len() < m_i->s->getDistanceTo(last_wp->x, last_wp->y)) {
-            return *i;
+Point2D PathFinder::get_next_waypoint() {
+    if (m_i->s->getDistanceTo(m_next_wp->x, m_next_wp->y) <= WAYPOINT_RADIUS) {
+        m_last_wp = m_next_wp++;
+        if (m_next_wp == m_waypoints->cend()) {
+            --m_next_wp;
         }
     }
-
-    return *last_wp;
+    return *m_next_wp;
 }
 
 Point2D PathFinder::get_previous_waypoint() const {
-    using WpIter = std::vector<Point2D>::const_reverse_iterator;
-
-    WpIter first_wp = m_waypoints->crend();
-    --first_wp;
-
-    for (WpIter i = m_waypoints->crbegin(); i != first_wp; ++i) {
-        if (m_i->s->getDistanceTo(i->x, i->y) <= WAYPOINT_RADIUS) {
-            return *(++i);
-        }
-        geom::Vec2D wpdist = *first_wp - *i;
-        if (wpdist.len() < m_i->s->getDistanceTo(first_wp->x, first_wp->y)) {
-            return *i;
-        }
-    }
-
-    return *first_wp;
+    return *m_last_wp;
 }
 
 void PathFinder::move_along(const geom::Vec2D &dir, model::Move &move, bool hold_face) {
