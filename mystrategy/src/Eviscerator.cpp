@@ -97,7 +97,9 @@ int Eviscerator::get_myself_death_time(const model::Wizard &me, const model::Min
 
     int killing_time = 0;
 
-    //TODO: Honor minion angle
+    double angle = std::abs(enemy.getAngleTo(me));
+    killing_time += angle / m_i->g->getMinionMaxTurnAngle();
+
     if (dist > attack_range) {
         killing_time += (dist - attack_range) / m_i->g->getMinionSpeed();
     }
@@ -110,7 +112,6 @@ int Eviscerator::get_myself_death_time(const model::Wizard &me, const model::Min
 
 int Eviscerator::get_myself_death_time(const model::Wizard &me, const model::Building &enemy) {
     double attack_range = enemy.getAttackRange();
-    int cooldown = enemy.getCooldownTicks();
     attack_range += me.getRadius();
     double dist = enemy.getDistanceTo(me);
 
@@ -134,7 +135,7 @@ int Eviscerator::get_myself_death_time(const model::Wizard &me, const model::Wiz
     int cooldown;
 
     int killing_time = 0;
-    //TODO: Honor angle
+
     if (dist > attack_range) {
         killing_time += (dist - attack_range) / m_i->g->getWizardForwardSpeed();
     }

@@ -56,9 +56,9 @@ public:
 protected:
     double m_r1;
     double m_r2;
+    bool m_is_attractive;
     double m_k;
     double m_V;
-    bool m_is_attractive;
 };
 
 
