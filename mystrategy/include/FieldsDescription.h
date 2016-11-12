@@ -14,17 +14,25 @@ namespace fields {
 /**
  * Поле влияющее в диапазоне r1 <= x <= r2 с постоянной силой.
  */
-class LinearRingField : public IVectorField {
+class ConstRingField : public IVectorField {
 public:
-    LinearRingField(const geom::Point2D &center, double r1, double r2, double force);
+    ConstRingField(const geom::Point2D &center, double r1, double r2, double force);
 
-    geom::Vec2D apply_force(double x, double y) override;
+    geom::Vec2D apply_force(double x, double y) const override;
 protected:
     double m_r1;
     double m_r2;
     double m_force;
 };
 
+
+/**
+ * Поле влияющие в диапазоне r1 <= x <= r2 с силой, изменяющейся линейно от расстояния
+ */
+//TODO: Implement
+//class LinearRingField : public IVectorField {
+//
+//};
 
 /**
  * Конфигурация, для представления экспоненциальной силы
@@ -37,13 +45,13 @@ struct ExpConfig {
     double V;
 };
 /**
- * Поле влиющее в диапазоне r1 <= x <= r2 с экспоненциальной силой
+ * Поле влиющее в диапазоне r1 <= x <= r2 с силой, изменяющейся экспоненциально от расстояния
  */
 class ExpRingField : public IVectorField {
 public:
     ExpRingField(const geom::Point2D &center, double r1, double r2, bool is_attractive, const ExpConfig &conf);
 
-    geom::Vec2D apply_force(double x, double y) override;
+    geom::Vec2D apply_force(double x, double y) const override;
 
 protected:
     double m_r1;

@@ -7,12 +7,12 @@
 
 namespace fields {
 
-LinearRingField::LinearRingField(const geom::Point2D &center, double r1, double r2, double force)
+ConstRingField::ConstRingField(const geom::Point2D &center, double r1, double r2, double force)
 : IVectorField(center), m_r1(r1), m_r2(r2), m_force(force) {
 
 }
 
-geom::Vec2D LinearRingField::apply_force(double x, double y) {
+geom::Vec2D ConstRingField::apply_force(double x, double y) const {
     geom::Vec2D v(m_center.x - x, m_center.y - y);
     double dist = v.len();
     if (dist >= m_r1 && dist <= m_r2) {
@@ -40,7 +40,7 @@ ExpRingField::ExpRingField(const geom::Point2D &center,
 }
 
 
-geom::Vec2D ExpRingField::apply_force(double x, double y) {
+geom::Vec2D ExpRingField::apply_force(double x, double y) const {
     geom::Vec2D v(m_center.x - x, m_center.y - y);
     double dist = v.len();
     if (dist >= m_r1 && dist <= m_r2) {
