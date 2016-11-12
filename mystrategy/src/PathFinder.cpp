@@ -8,7 +8,7 @@
 #include <map>
 #include <cassert>
 
-const int PathFinder::WAYPOINT_RADIUS = 100;
+const int PathFinder::WAYPOINT_RADIUS = 150;
 
 using geom::Point2D;
 
@@ -18,27 +18,27 @@ PathFinder::PathFinder(const InfoPack &info) {
     const double map_size = m_i->g->getMapSize();
 
     static const std::vector<Point2D> middle_wp = {
-        {100, map_size - 100},
-        {600, map_size - 200},
-        {800, map_size - 800},
-        {map_size - 600, 600}
+        {600,            map_size - 200},
+        {800,            map_size - 800},
+        {map_size - 600, 600},
+        {map_size,       0},
     };
 
     static const std::vector<Point2D> top_wp = {
-        {100.0,            map_size - 100.0},
-        {100.0,            map_size - 400.0},
-        {200.0,            map_size - 800.0},
-        {200.0,            map_size * 0.75},
-        {200.0,            map_size * 0.5},
-        {200.0,            map_size * 0.25},
-        {200.0,            200.0},
-        {map_size * 0.25,  200.0},
-        {map_size * 0.5,   200.0},
-        {map_size * 0.75,  200.0},
-        {map_size - 200.0, 200.0}};
+        {100.0, map_size - 400.0},
+        {200.0, map_size - 800.0},
+        {200.0, map_size * 0.75},
+        {200.0, map_size * 0.5},
+        {200.0, map_size * 0.25},
+        {200.0, 200.0},
+        {map_size * 0.25, 200.0},
+        {map_size * 0.5, 200.0},
+        {map_size * 0.75, 200.0},
+        {map_size - 200.0, 200.0},
+        {map_size, 0}
+    };
 
     static const std::vector<Point2D> bottom_wp = {
-        {100.0,            map_size - 100.0},
         {400.0,            map_size - 100.0},
         {800.0,            map_size - 200.0},
         {map_size * 0.25,  map_size - 200.0},
@@ -48,27 +48,25 @@ PathFinder::PathFinder(const InfoPack &info) {
         {map_size - 200.0, map_size * 0.75},
         {map_size - 200.0, map_size * 0.5},
         {map_size - 200.0, map_size * 0.25},
-        {map_size - 200.0, 200.0}};
+        {map_size - 200.0, 200.0},
+        {map_size,         0}
+    };
 
     switch (m_i->s->getId()) {
         case 1:
         case 2:
         case 6:
-        case 7:
-            m_waypoints = &top_wp;
+        case 7:m_waypoints = &top_wp;
             break;
         case 3:
-        case 8:
-            m_waypoints = &middle_wp;
+        case 8:m_waypoints = &middle_wp;
             break;
         case 4:
         case 5:
         case 9:
-        case 10:
-            m_waypoints = &bottom_wp;
+        case 10:m_waypoints = &bottom_wp;
             break;
-        default:
-        break;
+        default:break;
     }
     assert(m_waypoints);
     m_next_wp = m_waypoints->cbegin();

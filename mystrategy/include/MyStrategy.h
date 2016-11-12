@@ -30,6 +30,7 @@ private:
     InfoPack m_i;
     std::unique_ptr<PathFinder> m_pf;
     std::unique_ptr<Eviscerator> m_ev;
+    geom::Vec2D repelling_damage_avoidance_vector();
 };
 
 #endif
