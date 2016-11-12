@@ -25,4 +25,9 @@ extern const double ENEMY_DETECT_RANGE;
 //С какой силой притягиваться к радиусу удара к выбраному врагу
 extern const double CHOOSEN_ENEMY_ATTRACT;
 
+//Пиковое значение боязни смерти. Применяется как максимальное значение в экспоненциальной формуле избегания урона
+extern const double DEAD_PEEK_FEARING;
+//Насколько сильно боимся подойти к краю зоны потенциальной смерти
+extern const double DAMAGE_ZONE_END_FORCE;
+
 };

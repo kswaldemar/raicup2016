@@ -9,7 +9,8 @@ namespace fields {
 
 ConstRingField::ConstRingField(const geom::Point2D &center, double r1, double r2, double force)
 : IVectorField(center), m_r1(r1), m_r2(r2), m_force(force) {
-
+    assert(r1 >= 0);
+    assert(r2 >= 0);
 }
 
 geom::Vec2D ConstRingField::apply_force(double x, double y) const {
@@ -37,6 +38,8 @@ ExpRingField::ExpRingField(const geom::Point2D &center,
                            bool is_attractive,
                            const ExpConfig &conf)
 : IVectorField(center), m_r1(r1), m_r2(r2), m_is_attractive(is_attractive), m_k(conf.k), m_V(conf.V) {
+    assert(r1 >= 0);
+    assert(r2 >= 0);
 }
 
 

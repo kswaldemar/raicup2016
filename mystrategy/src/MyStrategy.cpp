@@ -43,53 +43,88 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     Vec2D obs_avoid = repelling_obs_avoidance_vector();
 
     //Just for test, it should depend on our hp level
-    std::vector<fields::ConstRingField> damage_fields;
+    std::vector<std::unique_ptr<fields::IVectorField>> damage_fields;
     const auto &creeps = world.getMinions();
     const auto &wizards = world.getWizards();
     const auto &buildings = world.getBuildings();
+    const double ME_RETREAT_SPEED = 4.0;
+
+    const auto &add_unit_damage_fields = [&damage_fields](const Point2D &unit_center,
+                                                          double attack_range,
+                                                          double dead_zone_r) {
+        attack_range += config::DMG_AVOID_EXTRA_DISTANCE;
+        if (dead_zone_r > 0) {
+            //So, there is some radius from which I cannot retreat
+            damage_fields.emplace_back(
+                std::make_unique<fields::ExpRingField>(
+                    unit_center,
+                    0,
+                    8000,
+                    false,
+                    fields::ExpConfig::from_two_points(config::DEAD_PEEK_FEARING,
+                                                       config::DAMAGE_ZONE_END_FORCE,
+                                                       attack_range)
+                )
+            );
+        } else {
+            //From this place I can retreat
+            damage_fields.emplace_back(
+                std::make_unique<fields::ConstRingField>(
+                    unit_center,
+                    0,
+                    attack_range,
+                    -config::DAMAGE_ZONE_END_FORCE
+                )
+            );
+        }
+    };
     for (const auto &minion : creeps) {
 
         if (minion.getFaction() == FACTION_NEUTRAL || minion.getFaction() == self.getFaction()) {
             continue;
         }
-        double attack_range;
 
+        double attack_range;
         if (minion.getType() == MINION_ORC_WOODCUTTER) {
             attack_range = game.getOrcWoodcutterAttackRange();
         } else {
             attack_range = game.getFetishBlowdartAttackRange();
         }
-        attack_range += self.getRadius() + config::DMG_AVOID_EXTRA_DISTANCE;
 
-        int incoming_damage = m_ev->get_incoming_damage({self.getX(), self.getY()}, self.getRadius(), minion);
-        damage_fields.emplace_back(Point2D{minion.getX(), minion.getY()}, 0, attack_range, -incoming_damage);
+        int me_kill_time = m_ev->get_myself_death_time(self, minion);
+        double dead_zone_r = attack_range - me_kill_time * ME_RETREAT_SPEED;
+        add_unit_damage_fields({minion.getX(), minion.getY()}, attack_range, dead_zone_r);
     }
     for (const auto &wizard : wizards) {
         if (wizard.getFaction() == FACTION_NEUTRAL || wizard.getFaction() == self.getFaction()) {
             continue;
         }
 
-        double attack_range = wizard.getCastRange();
-        attack_range += self.getRadius() + config::DMG_AVOID_EXTRA_DISTANCE;
-
-        int incoming_damage = m_ev->get_incoming_damage({self.getX(), self.getY()}, self.getRadius(), wizard);
-        damage_fields.emplace_back(Point2D{wizard.getX(), wizard.getY()}, 0, attack_range, -incoming_damage);
+        double attack_range = wizard.getCastRange() + self.getRadius();
+        int me_kill_time = m_ev->get_myself_death_time(self, wizard);
+        double dead_zone_r = attack_range - me_kill_time * ME_RETREAT_SPEED;
+        add_unit_damage_fields({wizard.getX(), wizard.getY()}, attack_range, dead_zone_r);
     }
     for (const auto &tower : buildings) {
         if (tower.getFaction() == self.getFaction()) {
             continue;
         }
 
-        double attack_range = tower.getAttackRange();
-        attack_range += self.getRadius() + config::DMG_AVOID_EXTRA_DISTANCE;
+        double attack_range;
+        if (tower.getType() == BUILDING_GUARDIAN_TOWER) {
+            attack_range = game.getGuardianTowerAttackRange();
+        } else {
+            attack_range = game.getFactionBaseAttackRange();
+        }
 
-        int incoming_damage = m_ev->get_incoming_damage({self.getX(), self.getY()}, self.getRadius(), tower);
-        damage_fields.emplace_back(Point2D{tower.getX(), tower.getY()}, 0, attack_range, -incoming_damage);
+        int me_kill_time = m_ev->get_myself_death_time(self, tower);
+        double dead_zone_r = attack_range - me_kill_time * ME_RETREAT_SPEED;
+        add_unit_damage_fields({tower.getX(), tower.getY()}, attack_range, dead_zone_r);
     }
 
     Vec2D damage_avoidance{0, 0};
     for (const auto &field : damage_fields) {
-        damage_avoidance += field.apply_force(self.getX(), self.getY());
+        damage_avoidance += field->apply_force(self.getX(), self.getY());
     }
 
     const bool have_target = m_ev->choose_enemy();
@@ -106,8 +141,17 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     }
 
 
-    printf("Obstacle vector: (%3.1lf; %3.1lf); Attractive vector: (%3.1lf; %3.1lf); Damage avoid vector (%3.1lf; %3.1lf);\n",
-           obs_avoid.x, obs_avoid.y, waypoints.x, waypoints.y, damage_avoidance.x, damage_avoidance.y);
+    printf(
+        "Dir (%3.1lf; %3.1lf); "
+            "Obstacle vector: (%3.1lf; %3.1lf); "
+            "Waypoint vector: (%3.1lf; %3.1lf); "
+            "Enemy attraction vector (%3.1lf; %3.1lf); "
+            "Damage avoid vector (%3.1lf; %3.1lf);\n",
+        dir.x, dir.y,
+        obs_avoid.x, obs_avoid.y,
+        waypoints.x, waypoints.y,
+        enemy_attraction.x, enemy_attraction.y,
+        damage_avoidance.x, damage_avoidance.y);
 }
 
 MyStrategy::MyStrategy() {
