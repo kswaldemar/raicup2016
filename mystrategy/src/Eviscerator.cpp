@@ -157,7 +157,7 @@ void Eviscerator::destroy(model::Move &move) {
     m_attract_field = std::make_unique<fields::ConstRingField>(
         geom::Point2D{target->getX(), target->getY()},
         m_i->s->getCastRange() - 10,
-        m_i->s->getCastRange(),
+        config::ENEMY_DETECT_RANGE,
         config::CHOOSEN_ENEMY_ATTRACT
     );
 
