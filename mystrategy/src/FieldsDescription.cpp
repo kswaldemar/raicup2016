@@ -2,8 +2,8 @@
 // Created by valdemar on 11.11.16.
 //
 
-#include <cassert>
 #include "FieldsDescription.h"
+#include <cassert>
 
 namespace fields {
 

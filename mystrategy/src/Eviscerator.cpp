@@ -105,6 +105,25 @@ bool Eviscerator::choose_enemy() {
     double min_dist = 1e9;
     bool first_time = true;
 
+    for (const auto &i : wizards) {
+        if (i.getFaction() == model::FACTION_NEUTRAL || i.getFaction() == m_i->s->getFaction()) {
+            continue;
+        }
+        dist = m_i->s->getDistanceTo(i);
+        if (first_time || dist < min_dist) {
+            first_time = false;
+            min_dist = dist;
+            m_en_building = nullptr;
+            m_en_minion = nullptr;
+            m_en_wz = &i;
+        }
+    }
+
+    if (m_en_wz && m_i->s->getDistanceTo(*m_en_wz) <= config::ENEMY_DETECT_RANGE) {
+        return true;
+    }
+
+
     for (const auto &i : buildings) {
         if (i.getFaction() == model::FACTION_NEUTRAL || i.getFaction() == m_i->s->getFaction()) {
             continue;
@@ -133,19 +152,7 @@ bool Eviscerator::choose_enemy() {
         }
     }
 
-    for (const auto &i : wizards) {
-        if (i.getFaction() == model::FACTION_NEUTRAL || i.getFaction() == m_i->s->getFaction()) {
-            continue;
-        }
-        dist = m_i->s->getDistanceTo(i);
-        if (first_time || dist < min_dist) {
-            first_time = false;
-            min_dist = dist;
-            m_en_building = nullptr;
-            m_en_minion = nullptr;
-            m_en_wz = &i;
-        }
-    }
+
 
     if (min_dist > config::ENEMY_DETECT_RANGE) {
         m_en_building = nullptr;

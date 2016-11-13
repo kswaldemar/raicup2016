@@ -3,6 +3,7 @@
 #include "MyStrategy.h"
 #include "PathFinder.h"
 #include "Logger.h"
+
 #include <cassert>
 
 using namespace model;
@@ -109,7 +110,7 @@ geom::Vec2D MyStrategy::repelling_obs_avoidance_vector() {
     const auto &creeps = m_i.w->getMinions();
 
     const auto &avoid = [](double center_x, double center_y, double radius, const model::CircularUnit *who) -> Vec2D {
-        double dist = radius + who->getRadius();
+        double dist = radius + who->getRadius() + config::OBS_AVOID_EXTRA_DISTANCE;
         /*
          * В середине большое значение, зависящее от радиуса
          * (чтобы объекты с разным радиусам толкали с одинаковой силой)

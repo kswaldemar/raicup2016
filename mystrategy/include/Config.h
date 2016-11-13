@@ -8,6 +8,7 @@ namespace config {
 
 //Кривизна поля отталкивания от препятствий
 extern const double OBS_AVOID_CURVATURE;
+extern const double OBS_AVOID_EXTRA_DISTANCE;
 //С какой силой притягиваемся к следующему/предыдущему вейпоинту
 extern const double NEXT_WAYPOINT_ATTRACTION;
 extern const double PREV_WAYPOINT_ATTRACTION;
