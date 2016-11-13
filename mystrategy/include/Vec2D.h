@@ -113,7 +113,7 @@ inline constexpr Vec2D operator * (double a, const Vec2D &v)
     return v * a;
 }
 
-inline constexpr Vec2D normalize(const Vec2D &v)
+inline const Vec2D normalize(const Vec2D &v)
 {
     if (v.len() > 0) {
         return v / v.len();

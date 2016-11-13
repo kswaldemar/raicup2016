@@ -182,7 +182,7 @@ void Eviscerator::destroy(model::Move &move) {
         config::CHOOSEN_ENEMY_ATTRACT
     );
 
-    double distance = m_i->s->getDistanceTo(*target);
+    double distance = m_i->s->getDistanceTo(*target) - target->getRadius() - m_i->g->getMagicMissileRadius();
     if (distance <= m_i->s->getCastRange()) {
         //Target near
         double angle = m_i->s->getAngleTo(*target);
@@ -198,7 +198,7 @@ void Eviscerator::destroy(model::Move &move) {
                 move.setAction(model::ACTION_MAGIC_MISSILE);
             }
             move.setCastAngle(angle);
-            move.setMinCastDistance(distance - target->getRadius() + m_i->g->getMagicMissileRadius());
+            move.setMinCastDistance(distance);
         }
     }
 }

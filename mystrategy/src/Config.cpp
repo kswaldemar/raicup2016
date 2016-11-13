@@ -11,7 +11,8 @@ const double OBS_AVOID_CURVATURE = 0.02;
 const double OBS_AVOID_EXTRA_DISTANCE = 50;
 
 const double NEXT_WAYPOINT_ATTRACTION = 20;
-const double PREV_WAYPOINT_ATTRACTION = 10;
+
+const double PREV_WAYPOINT_ATTRACTION = 5; // Завышение поля опасности, если отходим от последнего вейпоинта (будет влиять на привлечение к противнику)
 
 const double ENEMY_DETECT_RANGE = 600;
 

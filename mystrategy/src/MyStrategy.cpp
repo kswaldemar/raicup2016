@@ -60,12 +60,12 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     } else {
         //Move by waypoints
         Vec2D wp_next = m_pf->get_next_waypoint();
-        Vec2D wp_prev = m_pf->get_previous_waypoint();
         fields::ConstRingField nwp_field(wp_next, 0, 8000, config::NEXT_WAYPOINT_ATTRACTION);
-        fields::ConstRingField pwp_field(wp_prev, 0, 8000, config::PREV_WAYPOINT_ATTRACTION);
         waypoints += nwp_field.apply_force(self.getX(), self.getY());
-        waypoints += pwp_field.apply_force(self.getX(), self.getY());
     }
+    Vec2D wp_prev = m_pf->get_previous_waypoint();
+    fields::ConstRingField pwp_field(wp_prev, 0, 8000, config::PREV_WAYPOINT_ATTRACTION);
+    waypoints += pwp_field.apply_force(self.getX(), self.getY());
 
     Vec2D dir = obs_avoid + waypoints + damage_avoidance + enemy_attraction;
     if (dir.len() > EPS) {
@@ -225,6 +225,9 @@ geom::Vec2D MyStrategy::repelling_damage_avoidance_vector() {
     Vec2D ret{0, 0};
     for (const auto &field : damage_fields) {
         ret += field->apply_force(m_i.s->getX(), m_i.s->getY());
+    }
+    if (ret.len() > config::DAMAGE_MAX_FEAR) {
+        ret = normalize(ret) * config::DAMAGE_MAX_FEAR;
     }
     return ret;
 }
