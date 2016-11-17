@@ -4,3 +4,6 @@
 [submodule "cpp-cgdk"]
 	path = cpp-cgdk
 	url = https://github.com/Russian-AI-Cup-2016/cpp-cgdk.git
+[submodule "extra/ai-cup-visual"]
+	path = extra/ai-cup-visual
+	url = https://github.com/JustAMan/russian-ai-cup-visual.git

@@ -3,6 +3,7 @@
 #include "MyStrategy.h"
 #include "PathFinder.h"
 #include "Logger.h"
+#include "VisualDebug.h"
 
 #include <cassert>
 
@@ -30,6 +31,10 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
      */
     m_pf->update_info_pack(m_i);
     m_ev->update_info_pack(m_i);
+
+    VISUAL(beginPre);
+    VISUAL(circle, self.getX(), self.getY(), self.getRadius() * 2, 0x00ff00);
+    VISUAL(endPre);
 
     //Check about our death
     static int last_tick = 0;
@@ -116,8 +121,8 @@ geom::Vec2D MyStrategy::repelling_obs_avoidance_vector() {
          * (чтобы объекты с разным радиусам толкали с одинаковой силой)
          * Экспоненциальное угасание к концу
          */
-        auto cfg = fields::ExpConfig::from_two_points(config::OBS_AVOID_CURVATURE, dist, 0);
-        auto field = fields::ExpRingField({center_x, center_y}, 0, 8000, false, cfg);
+        //auto cfg = fields::ExpConfig::from_two_points(config::OBS_AVOID_FORCE, dist, 0);
+        auto field = fields::ConstRingField({center_x, center_y}, 0, dist, -config::OBS_AVOID_FORCE);
         auto vec = field.apply_force(who->getX(), who->getY());
         //if (vec.len() > EPS) {
         //    printf("Avoid: (%lf; %lf)\n", vec.x, vec.y);
