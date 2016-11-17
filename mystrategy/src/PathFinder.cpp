@@ -96,20 +96,20 @@ void PathFinder::move_along(const geom::Vec2D &dir, model::Move &move, bool hold
     double strafe = sin(turn_angle);
     double f_b = cos(turn_angle);
 
-    //Checking for haste
-    const auto &statuses = m_i->s->getStatuses();
-    for (const auto &st : statuses) {
-        if (st.getType() == model::STATUS_HASTENED) {
-            strafe *= m_i->g->getHastenedMovementBonusFactor();
-            f_b *= m_i->g->getHastenedMovementBonusFactor();
-        }
-    }
     strafe *= m_i->g->getWizardStrafeSpeed();
-
     if (f_b > 0) {
         f_b *= m_i->g->getWizardForwardSpeed();
     } else {
         f_b *= m_i->g->getWizardBackwardSpeed();
+    }
+
+    //Checking for haste
+    const auto &statuses = m_i->s->getStatuses();
+    for (const auto &st : statuses) {
+        if (st.getType() == model::STATUS_HASTENED) {
+            strafe *= 1.0 + m_i->g->getHastenedMovementBonusFactor();
+            f_b *= 1.0 + m_i->g->getHastenedMovementBonusFactor();
+        }
     }
 
     move.setStrafeSpeed(strafe);
