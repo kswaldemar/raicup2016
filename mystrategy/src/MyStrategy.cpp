@@ -29,11 +29,17 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     m_pf->update_info_pack(m_i);
     m_ev->update_info_pack(m_i);
 
-    //Update towers info, if possible
+    //Update towers info
     update_shadow_towers(m_enemy_towers, world, self.getFaction());
 
-    VISUAL(beginPre());
+    //Calculate danger map
+    update_danger_map();
+
     //Pre actions
+    VISUAL(beginPre());
+
+    visualise_danger_map(m_danger_map, {self.getX(), self.getY()});
+
     VISUAL(endPre());
     VISUAL(beginPost());
 
@@ -200,17 +206,113 @@ geom::Vec2D MyStrategy::repelling_obs_avoidance_vector() {
 }
 
 geom::Vec2D MyStrategy::repelling_damage_avoidance_vector() {
-    std::vector<std::unique_ptr<fields::IVectorField>> damage_fields;
+    Vec2D ret{0, 0};
+    double force = 0;
+    Vec2D tmp;
+    for (const auto &field : m_danger_map) {
+        tmp = field->apply_force(m_i.s->getX(), m_i.s->getY());
+        force += tmp.len();
+        ret += tmp;
+    }
+    force = std::min(force, config::DAMAGE_MAX_FEAR);
+    ret = normalize(ret) * force;
+    return ret;
+}
+
+void MyStrategy::update_shadow_towers(std::list<TowerDesc> &towers,
+                                      const model::World &world,
+                                      const model::Faction my_faction) {
+
+    /*
+     * First decrease cooldown by one
+     */
+    for (auto &shadow : towers) {
+        if (shadow.rem_cooldown > 0) {
+            shadow.rem_cooldown--;
+        }
+    }
+
+    /*
+     * Looks for our towers in building list, maybe we see some of them
+     */
+    std::vector<bool> updated(towers.size(), false);
+    for (const auto &enemy_tower : world.getBuildings()) {
+        if (enemy_tower.getFaction() == my_faction) {
+            continue;
+        }
+        //Search corresponding tower among shadows
+        int idx = 0;
+        for (auto &shadow : towers) {
+            if (enemy_tower.getId() == shadow.id
+                || enemy_tower.getDistanceTo(shadow.x, shadow.y) <= enemy_tower.getRadius()) {
+                //Found, update info
+                shadow.id = enemy_tower.getId();
+                shadow.rem_cooldown = enemy_tower.getRemainingActionCooldownTicks();
+                shadow.life = enemy_tower.getLife();
+                updated[idx] = true;
+            }
+            ++idx;
+        }
+    }
+
+    /*
+     * Check for destroy, if we see place, but don't see tower, it is destroyed
+     */
+    struct VisionRange {
+        VisionRange(double x_, double y_, double r_)
+            : x(x_),
+              y(y_),
+              r(r_) {
+        }
+
+        double x, y, r;
+    };
+    std::vector<VisionRange> team_vision;
+    for (const auto &creep : world.getMinions()) {
+        if (creep.getFaction() != my_faction) {
+            continue;
+        }
+        team_vision.emplace_back(creep.getX(), creep.getY(), creep.getVisionRange());
+    }
+    for (const auto &wizard : world.getWizards()) {
+        if (wizard.getFaction() != my_faction) {
+            continue;
+        }
+        team_vision.emplace_back(wizard.getX(), wizard.getY(), wizard.getVisionRange());
+    }
+    //Don't check buildings, because it cannot see another building
+
+    Vec2D dist{0, 0};
+    for (const auto &vision : team_vision) {
+        int idx = 0;
+        auto it = towers.cbegin();
+        while (it != towers.cend()) {
+            dist.x = it->x - vision.x;
+            dist.y = it->y - vision.y;
+            if (dist.len() <= vision.r && !updated[idx]) {
+                //We should see it, but it not appeared in world.getBuildings, so it is destroyed
+                LOG("Don't see tower: %3lf <= %3lf, %d\n", dist.len(), vision.r, (int) updated[idx]);
+                it = towers.erase(it);
+            } else {
+                ++it;
+            }
+            ++idx;
+        }
+    }
+}
+
+void MyStrategy::update_danger_map() {
+
+    m_danger_map.clear();
+    auto &damage_fields = m_danger_map;
+
     const auto &creeps = m_i.w->getMinions();
     const auto &wizards = m_i.w->getWizards();
-    //const auto &buildings = m_i.w->getBuildings();
     const double ME_RETREAT_SPEED = 4.0;
 
     const auto &add_unit_damage_fields = [&damage_fields](const Point2D &unit_center,
                                                           double attack_range,
                                                           double dead_zone_r) {
-        //So, there is some radius from which I cannot retreat
-
         damage_fields.emplace_back(
             std::make_unique<fields::ExpRingField>(
                 unit_center,
@@ -262,90 +364,28 @@ geom::Vec2D MyStrategy::repelling_damage_avoidance_vector() {
         sprintf(buf, "%3d", tower.rem_cooldown);
         VISUAL(text(tower.x, tower.y + 30, buf, 0x004400));
     }
-
-    Vec2D ret{0, 0};
-    for (const auto &field : damage_fields) {
-        ret += field->apply_force(m_i.s->getX(), m_i.s->getY());
-    }
-    if (ret.len() > config::DAMAGE_MAX_FEAR) {
-        ret = normalize(ret) * config::DAMAGE_MAX_FEAR;
-    }
-    return ret;
 }
 
-void MyStrategy::update_shadow_towers(std::list<TowerDesc> &towers,
-                                      const model::World &world,
-                                      const model::Faction my_faction) {
-
-    /*
-     * First decrease cooldown by one
-     */
-    for (auto &shadow : towers) {
-        if (shadow.rem_cooldown > 0) {
-            shadow.rem_cooldown--;
-        }
-    }
-
-    /*
-     * Looks for our towers in building list, maybe we see some of them
-     */
-    std::vector<bool> updated(towers.size(), false);
-    for (const auto &enemy_tower : world.getBuildings()) {
-        if (enemy_tower.getFaction() == my_faction) {
-            continue;
-        }
-        //Search corresponding tower among shadows
-        int idx = 0;
-        for (auto &shadow : towers) {
-            if (enemy_tower.getId() == shadow.id
-                || enemy_tower.getDistanceTo(shadow.x, shadow.y) <= enemy_tower.getRadius()) {
-                //Found, update info
-                shadow.id = enemy_tower.getId();
-                shadow.rem_cooldown = enemy_tower.getRemainingActionCooldownTicks();
-                shadow.life = enemy_tower.getLife();
-                updated[idx] = true;
+void MyStrategy::visualise_danger_map(const MyStrategy::DangerMap &danger, const geom::Point2D &center) {
+#ifdef RUNNING_LOCAL
+    const int GRID_SIZE = 30;
+    const int half = GRID_SIZE / 2;
+    Vec2D tmp;
+    for (int x = -600; x <= 600; x += GRID_SIZE) {
+        for (int y = -600; y <= 600; y += GRID_SIZE) {
+            double x_a = center.x + x;
+            double y_a = center.y + y;
+            double force = 0;
+            for (const auto &fld : danger) {
+                tmp = fld->apply_force(x_a, y_a);
+                force += tmp.len();
             }
-            ++idx;
+            force = std::min(force, config::DAMAGE_MAX_FEAR);
+            int color = static_cast<uint8_t>((255.0 / config::DAMAGE_MAX_FEAR) * force);
+            color = 255 - color;
+            color = (color << 16) | (color << 8) | color;
+            VISUAL(fillRect(x_a - half - 1, y_a - half - 1, x_a + half, y_a + half, color));
         }
     }
-
-    /*
-     * Check for destroy, if we see place, but don't see tower, it is destroyed
-     */
-    struct VisionRange {
-        VisionRange(double x_, double y_, double r_) : x(x_), y(y_), r(r_) {}
-        double x, y, r;
-    };
-    std::vector<VisionRange> team_vision;
-    for (const auto &creep : world.getMinions()) {
-        if (creep.getFaction() != my_faction) {
-            continue;
-        }
-        team_vision.emplace_back(creep.getX(), creep.getY(), creep.getVisionRange());
-    }
-    for (const auto &wizard : world.getWizards()) {
-        if (wizard.getFaction() != my_faction) {
-            continue;
-        }
-        team_vision.emplace_back(wizard.getX(), wizard.getY(), wizard.getVisionRange());
-    }
-    //Don't check buildings, because it cannot see another building
-
-    Vec2D dist{0, 0};
-    for (const auto &vision : team_vision) {
-        int idx = 0;
-        auto it = towers.cbegin();
-        while (it != towers.cend()) {
-            dist.x = it->x - vision.x;
-            dist.y = it->y - vision.y;
-            if (dist.len() <= vision.r && !updated[idx]) {
-                //We should see it, but it not appeared in world.getBuildings, so it is destroyed
-                LOG("Don't see tower: %3lf <= %3lf, %d\n", dist.len(), vision.r, (int)updated[idx]);
-                it = towers.erase(it);
-            } else {
-                ++it;
-            }
-            ++idx;
-        }
-    }
+#endif
 }

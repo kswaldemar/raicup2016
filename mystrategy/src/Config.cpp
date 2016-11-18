@@ -10,7 +10,7 @@ namespace config {
 const double OBS_AVOID_FORCE = 50;
 const double OBS_AVOID_EXTRA_DISTANCE = 5;
 
-const double NEXT_WAYPOINT_ATTRACTION = 10;
+const double NEXT_WAYPOINT_ATTRACTION = 50;
 
 const double PREV_WAYPOINT_ATTRACTION = 5; // Завышение поля опасности, если отходим от последнего вейпоинта (будет влиять на привлечение к противнику)
 

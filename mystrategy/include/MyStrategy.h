@@ -14,7 +14,7 @@
 #include <list>
 
 class MyStrategy : public Strategy {
-
+    using DangerMap = std::vector<std::unique_ptr<fields::IVectorField>>;
 public:
     MyStrategy();
 
@@ -38,14 +38,21 @@ public:
                                      const model::World &world,
                                      const model::Faction my_faction);
 
-private:
+    static void visualise_danger_map(const DangerMap& danger, const geom::Point2D &center);
 
+    /*
+     * Update danger map, according to current world info
+     */
+    void update_danger_map();
+
+private:
     InfoPack m_i;
     std::unique_ptr<PathFinder> m_pf;
     std::unique_ptr<Eviscerator> m_ev;
-
     //Enemy towers, to not forget in fog of war
     std::list<TowerDesc> m_enemy_towers;
+    //Danger map
+    DangerMap m_danger_map;
 };
 
 #endif
