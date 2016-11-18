@@ -7,6 +7,7 @@
 #include "Config.h"
 #include "Eviscerator.h"
 #include "FieldsDescription.h"
+#include "VisualDebug.h"
 
 #include <cassert>
 
@@ -96,6 +97,23 @@ int Eviscerator::get_myself_death_time(const model::Wizard &me, const model::Wiz
     return killing_time;
 }
 
+int Eviscerator::get_myself_death_time(const model::Wizard &me, const TowerDesc &enemy) {
+    double attack_range = enemy.attack_range;
+    attack_range += me.getRadius();
+    double dist = me.getDistanceTo(enemy.x, enemy.y);
+
+    if (dist <= attack_range) {
+        int killing_time = 0;
+        killing_time += enemy.rem_cooldown;
+        int atk_number = (me.getLife() + enemy.damage - 1) / enemy.damage;
+        killing_time += (atk_number - 1) * enemy.cooldown;
+        return killing_time;
+    }
+
+    //This will never happen
+    return 20000;
+}
+
 bool Eviscerator::choose_enemy() {
     const auto &buildings = m_i->w->getBuildings();
     const auto &wizards = m_i->w->getWizards();
@@ -153,7 +171,6 @@ bool Eviscerator::choose_enemy() {
     }
 
 
-
     if (min_dist > config::ENEMY_DETECT_RANGE) {
         m_en_building = nullptr;
         m_en_minion = nullptr;
@@ -175,12 +192,21 @@ void Eviscerator::destroy(model::Move &move) {
         target = m_en_building;
     }
 
+    VISUAL(line(m_i->s->getX(), m_i->s->getY(), target->getX(), target->getY(), 0x0000FF));
+
+    double min_range = m_i->s->getCastRange() + target->getRadius() + m_i->g->getMagicMissileRadius();
+    if (target->getLife() < 50) {
+        min_range -= (50 - target->getLife()) * 2;
+    }
     m_attract_field = std::make_unique<fields::ConstRingField>(
         geom::Point2D{target->getX(), target->getY()},
-        m_i->s->getCastRange(),
+        min_range,
         config::ENEMY_DETECT_RANGE,
         config::CHOOSEN_ENEMY_ATTRACT
     );
+
+    VISUAL(circle(target->getX(), target->getY(), min_range, 0x004400));
+    VISUAL(circle(target->getX(), target->getY(), config::ENEMY_DETECT_RANGE, 0x008800));
 
     double distance = m_i->s->getDistanceTo(*target) - target->getRadius() - m_i->g->getMagicMissileRadius();
     if (distance <= m_i->s->getCastRange()) {

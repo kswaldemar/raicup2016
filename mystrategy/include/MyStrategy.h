@@ -8,8 +8,10 @@
 #include "Vec2D.h"
 #include "PathFinder.h"
 #include "Eviscerator.h"
+#include "UnitDesc.h"
 
 #include <memory>
+#include <list>
 
 class MyStrategy : public Strategy {
 
@@ -25,12 +27,25 @@ public:
 
     geom::Vec2D repelling_obs_avoidance_vector();
 
+    geom::Vec2D repelling_damage_avoidance_vector();
+
+    bool initialize_strategy(const model::Wizard &self, const model::World &world, const model::Game &game);
+
+    /*
+     * Analyse information about vision and update any tower-related information if possible
+     */
+    static void update_shadow_towers(std::list<TowerDesc> &towers,
+                                     const model::World &world,
+                                     const model::Faction my_faction);
+
 private:
 
     InfoPack m_i;
     std::unique_ptr<PathFinder> m_pf;
     std::unique_ptr<Eviscerator> m_ev;
-    geom::Vec2D repelling_damage_avoidance_vector();
+
+    //Enemy towers, to not forget in fog of war
+    std::list<TowerDesc> m_enemy_towers;
 };
 
 #endif

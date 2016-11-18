@@ -39,7 +39,7 @@ private:
 };
 
 #ifdef RUNNING_LOCAL
-    #define VISUAL(func, ...) Debug::getInstance().func(__VA_ARGS__)
+    #define VISUAL(func) Debug::getInstance().func
 #else
     #define VISUAL(...)
 #endif

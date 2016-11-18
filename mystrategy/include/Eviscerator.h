@@ -11,6 +11,7 @@
 #include "Vec2D.h"
 #include "InfoPack.h"
 #include "VectorField.h"
+#include "UnitDesc.h"
 
 #include <memory>
 
@@ -34,6 +35,7 @@ public:
     int get_myself_death_time(const model::Wizard &me, const model::Minion &enemy);
     int get_myself_death_time(const model::Wizard &me, const model::Building &enemy);
     int get_myself_death_time(const model::Wizard &me, const model::Wizard &enemy);
+    int get_myself_death_time(const model::Wizard &me, const TowerDesc &enemy);
 
     /**
      * Check all enemies and choose best one.
