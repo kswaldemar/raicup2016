@@ -9,12 +9,12 @@
 #include "PathFinder.h"
 #include "Eviscerator.h"
 #include "UnitDesc.h"
+#include "FieldMap.h"
 
 #include <memory>
 #include <list>
 
 class MyStrategy : public Strategy {
-    using DangerMap = std::vector<std::unique_ptr<fields::IVectorField>>;
 public:
     MyStrategy();
 
@@ -38,7 +38,7 @@ public:
                                      const model::World &world,
                                      const model::Faction my_faction);
 
-    static void visualise_danger_map(const DangerMap& danger, const geom::Point2D &center);
+    static void visualise_danger_map(const fields::FieldMap& danger, const geom::Point2D &center);
 
     /*
      * Update danger map, according to current world info
@@ -52,7 +52,7 @@ private:
     //Enemy towers, to not forget in fog of war
     std::list<TowerDesc> m_enemy_towers;
     //Danger map
-    DangerMap m_danger_map;
+    fields::FieldMap m_danger_map = fields::FieldMap(fields::FieldMap::ADD);
 };
 
 #endif

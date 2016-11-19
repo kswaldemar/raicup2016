@@ -22,6 +22,12 @@ extern const double ENEMY_DETECT_RANGE;
 //С какой силой притягиваться к радиусу удара к выбраному врагу
 extern const double CHOOSEN_ENEMY_ATTRACT;
 
+//Максимальное значение опасности для атаки
+extern const double ATTACK_THRESH;
+
+//Максимальное значение опасности для движения по вейпоинтам
+extern const double SCOUT_THRESH;
+
 //Максимальное значение страха, если сила поля урона в точке достигает этого значения, значит нас могут убить за 1 такт
 extern const double DAMAGE_MAX_FEAR;
 //Кривизна экспоненты боязни смерти

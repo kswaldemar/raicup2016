@@ -37,6 +37,8 @@ public:
     int get_myself_death_time(const model::Wizard &me, const model::Wizard &enemy);
     int get_myself_death_time(const model::Wizard &me, const TowerDesc &enemy);
 
+    static double calc_dead_zone(const RunawayUnit &me, const AttackUnit &enemy);
+
     /**
      * Check all enemies and choose best one.
      * Enemy stored in internal variable

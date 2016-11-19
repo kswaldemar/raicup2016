@@ -114,6 +114,16 @@ int Eviscerator::get_myself_death_time(const model::Wizard &me, const TowerDesc 
     return 20000;
 }
 
+double Eviscerator::calc_dead_zone(const RunawayUnit &me, const AttackUnit &enemy) {
+    //Assume that we are in shooting range
+    int killing_time = 0;
+    killing_time += enemy.rem_cooldown;
+    int atk_number = (me.life + enemy.dmg - 1) / enemy.dmg;
+    killing_time += (atk_number - 1) * enemy.cooldown;
+
+    return enemy.range - (killing_time * me.speed);
+}
+
 bool Eviscerator::choose_enemy() {
     const auto &buildings = m_i->w->getBuildings();
     const auto &wizards = m_i->w->getWizards();

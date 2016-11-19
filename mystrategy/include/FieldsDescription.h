@@ -9,6 +9,9 @@
  */
 #include "VectorField.h"
 
+#include <memory>
+#include <list>
+
 namespace fields {
 
 /**
@@ -61,6 +64,5 @@ protected:
     double m_k;
     double m_V;
 };
-
 
 }

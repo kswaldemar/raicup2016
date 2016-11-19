@@ -6,7 +6,7 @@
 
 #include <cmath>
 
-extern const double pi;
+constexpr double pi = 3.14159265358979323846;
 
 namespace geom {
 
@@ -139,6 +139,14 @@ inline constexpr Vec2D rotate(const Vec2D &v1, const Vec2D &v2)
 inline constexpr Vec2D conj(const Vec2D &v)
 {
     return Vec2D(v.x, -v.y);
+}
+
+inline constexpr double rad_to_deg(const double rad_angle) {
+    return rad_angle * 180.0 / pi;
+}
+
+inline constexpr double deg_to_rad(const double deg_angle) {
+    return deg_angle * pi / 180.0;
 }
 
 //Same class, but only point in map, not vector by meaning

@@ -12,7 +12,6 @@ using namespace model;
 using namespace std;
 using namespace geom;
 
-const double pi = 3.14159265358979323846;
 const double EPS = 0.00003;
 InfoPack g_info;
 
@@ -41,6 +40,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     visualise_danger_map(m_danger_map, {self.getX(), self.getY()});
 
     VISUAL(endPre());
+
     VISUAL(beginPost());
 
     //Check about our death
@@ -53,44 +53,68 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     }
     last_tick = cur_tick;
 
-    //Handle shadow towers
-
-
     //Summary movement vector
     Vec2D sum{0, 0};
 
     //Avoid obstacles
     Vec2D obs_avoid = repelling_obs_avoidance_vector();
+
+    //Best move, to minimize danger to avoid danger
     Vec2D damage_avoidance = repelling_damage_avoidance_vector();
 
-    char buf[10];
-    sprintf(buf, "%3.1lf%%", damage_avoidance.len());
-    VISUAL(text(self.getX() - 70, self.getY() - 60, buf, 0xFF0000));
+    enum Action {
+        ATTACK,
+        SCOUT,
+        MINIMIZE_DANGER,
+        NOTHING
+    };
 
+    Action current_action = NOTHING;
 
-    const bool have_target = m_ev->choose_enemy();
-    Vec2D enemy_attraction{0, 0};
+    Vec2D dir;
+    double danger_level = m_danger_map.get_value(self.getX(), self.getY());
 
-    Vec2D waypoints{0, 0};
-    if (have_target) {
-        //Enemy choosen
-        m_ev->destroy(move);
-        enemy_attraction = m_ev->apply_enemy_attract_field(self);
-    } else {
+    if (danger_level <= config::ATTACK_THRESH && current_action == NOTHING) {
+        //Danger is ok to attack
+        //TODO: Check many enemies and attack if not too dangerous
+
+        const bool have_target = m_ev->choose_enemy();
+        Vec2D enemy_attraction{0, 0};
+        if (have_target) {
+            //Enemy choosen
+            current_action = ATTACK;
+            m_ev->destroy(move);
+            enemy_attraction = m_ev->apply_enemy_attract_field(self);
+            //TODO: Add pathfinding using A*
+            dir = enemy_attraction + damage_avoidance + obs_avoid;
+            m_pf->move_along(dir, move, true);
+        }
+    }
+
+    if (danger_level <= config::SCOUT_THRESH && current_action == NOTHING) {
         //Move by waypoints
+        current_action = SCOUT;
         Vec2D wp_next = m_pf->get_next_waypoint();
         fields::ConstRingField nwp_field(wp_next, 0, 8000, config::NEXT_WAYPOINT_ATTRACTION);
-        waypoints += nwp_field.apply_force(self.getX(), self.getY());
+        //TODO: Add pathfinding using A*
+        dir = nwp_field.apply_force(self.getX(), self.getY()) + damage_avoidance + obs_avoid;
+        m_pf->move_along(dir, move, false);
     }
-    Vec2D wp_prev = m_pf->get_previous_waypoint();
-    fields::ConstRingField pwp_field(wp_prev, 0, 8000, config::PREV_WAYPOINT_ATTRACTION);
-    waypoints += pwp_field.apply_force(self.getX(), self.getY());
 
-    Vec2D dir = obs_avoid + waypoints + damage_avoidance + enemy_attraction;
-    if (dir.len() > EPS) {
+    if (current_action == NOTHING) {
+        current_action = MINIMIZE_DANGER;
+
+        Vec2D wp_prev = m_pf->get_previous_waypoint();
+        fields::ConstRingField pwp_field(wp_prev, 0, 8000, config::PREV_WAYPOINT_ATTRACTION);
+        dir = damage_avoidance + pwp_field.apply_force(self.getX(), self.getY()) + obs_avoid;
+
+        //Shoot to enemy, while retreat
+        const bool have_target = m_ev->choose_enemy();
+        if (have_target) {
+            m_ev->destroy(move);
+        }
         m_pf->move_along(dir, move, have_target);
     }
-
 
     //LOG(
     //    "[Danger %3.1lf%%] Dir (%3.1lf; %3.1lf); "
@@ -104,6 +128,25 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     //    waypoints.x, waypoints.y,
     //    enemy_attraction.x, enemy_attraction.y,
     //    damage_avoidance.x, damage_avoidance.y);
+
+#ifdef RUNNING_LOCAL
+    char buf[10];
+    char c = 'N';
+    switch (current_action) {
+        case MINIMIZE_DANGER:
+            c = 'M';
+            break;
+        case ATTACK:
+            c = 'A';
+            break;
+        case SCOUT:
+            c = 'S';
+            break;
+    }
+    sprintf(buf, "%c %3.1lf%%", c, m_danger_map.get_value(self.getX(), self.getY()));
+    VISUAL(text(self.getX() - 70, self.getY() - 60, buf, 0xFF0000));
+#endif
+
 
     VISUAL(endPost());
 }
@@ -206,17 +249,61 @@ geom::Vec2D MyStrategy::repelling_obs_avoidance_vector() {
 }
 
 geom::Vec2D MyStrategy::repelling_damage_avoidance_vector() {
-    Vec2D ret{0, 0};
-    double force = 0;
-    Vec2D tmp;
-    for (const auto &field : m_danger_map) {
-        tmp = field->apply_force(m_i.s->getX(), m_i.s->getY());
-        force += tmp.len();
-        ret += tmp;
+    constexpr double ANGLE_STEP = 5;
+    constexpr int all_steps = static_cast<int>((360 + ANGLE_STEP - 1) / ANGLE_STEP);
+    std::array<double, all_steps> forces;
+    forces.fill(config::DAMAGE_MAX_FEAR);
+
+    Vec2D fwd{m_i.g->getWizardForwardSpeed(), m_i.g->getWizardStrafeSpeed()};
+    double len = fwd.len();
+
+    Vec2D back{-m_i.g->getWizardBackwardSpeed(), m_i.g->getWizardStrafeSpeed()};
+    double len2 = back.len();
+
+
+    const int steps = static_cast<int>(180.0 / ANGLE_STEP);
+    for (int i = 0; i <= steps; ++i) {
+        double angle = deg_to_rad(i * ANGLE_STEP);
+
+        if (angle > pi) {
+            len = len2;
+        }
+
+        Vec2D cur{len * cos(angle), len * sin(angle)};
+        cur.x += m_i.s->getX();
+        cur.y += m_i.s->getY();
+        forces[i] = m_danger_map.get_value(cur.x, cur.y);
     }
-    force = std::min(force, config::DAMAGE_MAX_FEAR);
-    ret = normalize(ret) * force;
-    return ret;
+
+    int min_idx = 0;
+    for (int i = 0; i < forces.size(); ++i) {
+        if (forces[i] < forces[min_idx]) {
+            min_idx = i;
+        }
+    }
+
+    double angle = deg_to_rad(min_idx * ANGLE_STEP);
+    //Vec2D best{m_i.s->getX(), m_i.s->getY()};
+    Vec2D best;
+    if (angle > pi) {
+        best.x += len2 * cos(angle);
+        best.y += len2 * sin(angle);
+    } else {
+        best.x += len * cos(angle);
+        best.y += len * sin(angle);
+    }
+
+
+    const double cur_danger = m_danger_map.get_value(m_i.s->getX(), m_i.s->getY());
+#ifdef RUNNING_LOCAL
+    Vec2D to_draw = normalize(best) * 50;
+    if (cur_danger > 0) {
+        VISUAL(line(m_i.s->getX(), m_i.s->getY(), m_i.s->getX() + to_draw.x, m_i.s->getY() + to_draw.y, 0x00CC00));
+    }
+#endif
+    best = normalize(best);
+    best *= cur_danger;
+    return best;
 }
 
 void MyStrategy::update_shadow_towers(std::list<TowerDesc> &towers,
@@ -313,7 +400,7 @@ void MyStrategy::update_danger_map() {
     const auto &add_unit_damage_fields = [&damage_fields](const Point2D &unit_center,
                                                           double attack_range,
                                                           double dead_zone_r) {
-        damage_fields.emplace_back(
+        damage_fields.add_field(
             std::make_unique<fields::ExpRingField>(
                 unit_center,
                 0,
@@ -323,6 +410,8 @@ void MyStrategy::update_danger_map() {
             )
         );
     };
+
+    const RunawayUnit me{m_i.s->getLife(), m_i.s->getMaxLife(), ME_RETREAT_SPEED};
     for (const auto &minion : creeps) {
 
         if (minion.getFaction() == FACTION_NEUTRAL || minion.getFaction() == m_i.s->getFaction()) {
@@ -337,8 +426,12 @@ void MyStrategy::update_danger_map() {
         }
         attack_range += m_i.s->getRadius();
 
-        int me_kill_time = m_ev->get_myself_death_time(*m_i.s, minion);
-        double dead_zone_r = attack_range - me_kill_time * ME_RETREAT_SPEED;
+        const AttackUnit enemy{minion.getRemainingActionCooldownTicks(),
+                               minion.getCooldownTicks(),
+                               minion.getDamage(),
+                               attack_range,
+                               m_i.g->getMinionSpeed()};
+        double dead_zone_r = Eviscerator::calc_dead_zone(me, enemy);
         add_unit_damage_fields({minion.getX(), minion.getY()}, attack_range, dead_zone_r);
     }
     for (const auto &wizard : wizards) {
@@ -346,19 +439,34 @@ void MyStrategy::update_danger_map() {
             continue;
         }
 
-        double attack_range = wizard.getCastRange() + m_i.s->getRadius();
-        int me_kill_time = m_ev->get_myself_death_time(*m_i.s, wizard);
-        double dead_zone_r = attack_range - me_kill_time * ME_RETREAT_SPEED;
+        const double attack_range = wizard.getCastRange() + m_i.s->getRadius() + m_i.g->getMagicMissileRadius();
+        const AttackUnit enemy{wizard.getRemainingActionCooldownTicks(),
+                               m_i.g->getMagicMissileCooldownTicks(),
+                               m_i.g->getMagicMissileDirectDamage(),
+                               attack_range,
+                               m_i.g->getWizardForwardSpeed()};
+        double dead_zone_r = Eviscerator::calc_dead_zone(me, enemy);
         add_unit_damage_fields({wizard.getX(), wizard.getY()}, attack_range, dead_zone_r);
     }
 
     for (const auto &tower : m_enemy_towers) {
-        double attack_range = tower.attack_range;
-        attack_range += m_i.s->getRadius();
+        double attack_range = tower.attack_range + m_i.s->getRadius();
+        const AttackUnit enemy{tower.rem_cooldown,
+                               tower.cooldown,
+                               tower.damage,
+                               attack_range,
+                               0};
+        double dead_zone_r = Eviscerator::calc_dead_zone(me, enemy);
+        damage_fields.add_field(
+            std::make_unique<fields::ExpRingField>(
+                Point2D{tower.x, tower.y},
+                0,
+                tower.attack_range,
+                false,
+                fields::ExpConfig::from_two_points(config::DAMAGE_ZONE_CURVATURE, config::DAMAGE_MAX_FEAR, dead_zone_r)
+            )
+        );
 
-        int me_kill_time = m_ev->get_myself_death_time(*m_i.s, tower);
-        double dead_zone_r = attack_range - me_kill_time * ME_RETREAT_SPEED;
-        add_unit_damage_fields({tower.x, tower.y}, attack_range, dead_zone_r);
         VISUAL(circle(tower.x, tower.y, tower.attack_range, 0x440000));
         char buf[10];
         sprintf(buf, "%3d", tower.rem_cooldown);
@@ -366,7 +474,7 @@ void MyStrategy::update_danger_map() {
     }
 }
 
-void MyStrategy::visualise_danger_map(const MyStrategy::DangerMap &danger, const geom::Point2D &center) {
+void MyStrategy::visualise_danger_map(const fields::FieldMap &danger, const geom::Point2D &center) {
 #ifdef RUNNING_LOCAL
     const int GRID_SIZE = 30;
     const int half = GRID_SIZE / 2;
@@ -375,11 +483,7 @@ void MyStrategy::visualise_danger_map(const MyStrategy::DangerMap &danger, const
         for (int y = -600; y <= 600; y += GRID_SIZE) {
             double x_a = center.x + x;
             double y_a = center.y + y;
-            double force = 0;
-            for (const auto &fld : danger) {
-                tmp = fld->apply_force(x_a, y_a);
-                force += tmp.len();
-            }
+            double force = danger.get_value(x_a, y_a);
             force = std::min(force, config::DAMAGE_MAX_FEAR);
             int color = static_cast<uint8_t>((255.0 / config::DAMAGE_MAX_FEAR) * force);
             color = 255 - color;
