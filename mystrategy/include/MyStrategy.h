@@ -25,9 +25,7 @@ public:
 
     void initialize_info_pack(const model::Wizard &self, const model::World &world, const model::Game &game);
 
-    geom::Vec2D repelling_obs_avoidance_vector();
-
-    geom::Vec2D repelling_damage_avoidance_vector();
+    geom::Vec2D damage_avoid_vector(const geom::Point2D &from);
 
     bool initialize_strategy(const model::Wizard &self, const model::World &world, const model::Game &game);
 

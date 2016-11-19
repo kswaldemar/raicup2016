@@ -33,4 +33,6 @@ extern const double DAMAGE_MAX_FEAR;
 //Кривизна экспоненты боязни смерти
 extern const double DAMAGE_ZONE_CURVATURE;
 
+extern const double DANGER_PATHFIND_COEF;
+
 };

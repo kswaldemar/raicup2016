@@ -190,7 +190,7 @@ bool Eviscerator::choose_enemy() {
     return true;
 }
 
-void Eviscerator::destroy(model::Move &move) {
+Eviscerator::DestroyDesc Eviscerator::destroy(model::Move &move) {
     assert(m_en_building || m_en_minion || m_en_wz);
 
     const model::LivingUnit *target;
@@ -237,6 +237,7 @@ void Eviscerator::destroy(model::Move &move) {
             move.setMinCastDistance(distance);
         }
     }
+    return {target, min_range};
 }
 
 geom::Vec2D Eviscerator::apply_enemy_attract_field(const model::Wizard &me) {

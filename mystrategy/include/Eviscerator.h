@@ -25,6 +25,11 @@
 class Eviscerator {
 public:
 
+    struct DestroyDesc {
+        const model::LivingUnit *unit;
+        const double att_range;
+    };
+
     Eviscerator(const InfoPack &info);
 
     /*
@@ -46,7 +51,7 @@ public:
      */
     bool choose_enemy();
 
-    void destroy(model::Move &move);
+    DestroyDesc destroy(model::Move &move);
 
     geom::Vec2D apply_enemy_attract_field(const model::Wizard &me);
 

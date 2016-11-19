@@ -18,7 +18,7 @@ const double ENEMY_DETECT_RANGE = 600;
 
 const double CHOOSEN_ENEMY_ATTRACT = 70;
 
-const double ATTACK_THRESH = 70;
+const double ATTACK_THRESH = 50;
 
 const double SCOUT_THRESH = 50;
 
@@ -29,11 +29,14 @@ const double DAMAGE_MAX_FEAR = 100;
  * 0.01 - 73
  * 0.001 - 9.5
  */
-const double DAMAGE_ZONE_CURVATURE = 0.0017; //0.0017
+const double DAMAGE_ZONE_CURVATURE = 0.0023; //0.0017
 
 
 
 //240 - good
 const int DMG_SIMULATION_TICKS = 360;
+
+
+const double DANGER_PATHFIND_COEF = 1;
 
 }

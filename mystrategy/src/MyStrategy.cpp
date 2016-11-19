@@ -15,6 +15,13 @@ using namespace geom;
 const double EPS = 0.00003;
 InfoPack g_info;
 
+enum Behaviour {
+    BH_ATTACK,
+    BH_SCOUT,
+    BH_MINIMIZE_DANGER,
+    BH_NOTHING
+};
+
 
 void MyStrategy::move(const Wizard &self, const World &world, const Game &game, Move &move) {
     //Initialize common used variables, on each tick start
@@ -22,26 +29,6 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
 
     static bool initialized = initialize_strategy(self, world, game);
     assert(initialized);
-    /*
-     * Per tick initialization
-     */
-    m_pf->update_info_pack(m_i);
-    m_ev->update_info_pack(m_i);
-
-    //Update towers info
-    update_shadow_towers(m_enemy_towers, world, self.getFaction());
-
-    //Calculate danger map
-    update_danger_map();
-
-    //Pre actions
-    VISUAL(beginPre());
-
-    visualise_danger_map(m_danger_map, {self.getX(), self.getY()});
-
-    VISUAL(endPre());
-
-    VISUAL(beginPost());
 
     //Check about our death
     static int last_tick = 0;
@@ -53,66 +40,116 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     }
     last_tick = cur_tick;
 
-    //Summary movement vector
-    Vec2D sum{0, 0};
+    //Update towers info
+    update_shadow_towers(m_enemy_towers, world, self.getFaction());
 
-    //Avoid obstacles
-    Vec2D obs_avoid = repelling_obs_avoidance_vector();
+    //Calculate danger map
+    update_danger_map();
 
-    //Best move, to minimize danger to avoid danger
-    Vec2D damage_avoidance = repelling_damage_avoidance_vector();
+    /*
+     * Per tick initialization
+     */
+    m_pf->update_info_pack(m_i);
+    m_ev->update_info_pack(m_i);
+    m_pf->update_reference(m_danger_map);
 
-    enum Action {
-        ATTACK,
-        SCOUT,
-        MINIMIZE_DANGER,
-        NOTHING
-    };
+    //Pre actions
+    VISUAL(beginPre());
 
-    Action current_action = NOTHING;
+    visualise_danger_map(m_danger_map, {self.getX(), self.getY()});
+
+    VISUAL(endPre());
+
+    VISUAL(beginPost());
+
+
+    Behaviour current_action = BH_NOTHING;
+    static Behaviour prev_action = BH_NOTHING;
+    static Point2D prev_point{0, 0};
 
     Vec2D dir;
     double danger_level = m_danger_map.get_value(self.getX(), self.getY());
 
-    if (danger_level <= config::ATTACK_THRESH && current_action == NOTHING) {
+    if (danger_level <= config::ATTACK_THRESH && current_action == BH_NOTHING) {
         //Danger is ok to attack
         //TODO: Check many enemies and attack if not too dangerous
 
+        double att_range = 0;
+        const CircularUnit *enemy;
         const bool have_target = m_ev->choose_enemy();
         Vec2D enemy_attraction{0, 0};
         if (have_target) {
             //Enemy choosen
-            current_action = ATTACK;
-            m_ev->destroy(move);
-            enemy_attraction = m_ev->apply_enemy_attract_field(self);
-            //TODO: Add pathfinding using A*
-            dir = enemy_attraction + damage_avoidance + obs_avoid;
-            m_pf->move_along(dir, move, true);
+            prev_action = current_action;
+            current_action = BH_ATTACK;
+            auto description = m_ev->destroy(move);
+            if (self.getDistanceTo(*description.unit) >= description.att_range) {
+                if (prev_action != current_action || self.getDistanceTo(prev_point.x, prev_point.y) <= 1) {
+                    dir = m_pf->find_way({description.unit->getX(), description.unit->getY()}, description.att_range, 0);
+                    prev_point = {self.getX() + dir.x, self.getY() + dir.y};
+                } else {
+                    dir = {prev_point.x - self.getX(), prev_point.y - self.getY()};
+                }
+                m_pf->move_along(dir, move, true);
+            } else {
+                current_action = BH_MINIMIZE_DANGER;
+            }
         }
     }
 
-    if (danger_level <= config::SCOUT_THRESH && current_action == NOTHING) {
+    if (danger_level <= config::SCOUT_THRESH && current_action == BH_NOTHING) {
         //Move by waypoints
-        current_action = SCOUT;
+        prev_action = current_action;
+        current_action = BH_SCOUT;
         Vec2D wp_next = m_pf->get_next_waypoint();
-        fields::ConstRingField nwp_field(wp_next, 0, 8000, config::NEXT_WAYPOINT_ATTRACTION);
-        //TODO: Add pathfinding using A*
-        dir = nwp_field.apply_force(self.getX(), self.getY()) + damage_avoidance + obs_avoid;
-        m_pf->move_along(dir, move, false);
+        VISUAL(circle(wp_next.x, wp_next.y, PathFinder::WAYPOINT_RADIUS, 0x001111));
+        if (prev_action != current_action || self.getDistanceTo(prev_point.x, prev_point.y) <= 4) {
+            dir = m_pf->find_way(wp_next, PathFinder::WAYPOINT_RADIUS, 10);
+            if (dir.len() < EPS) {
+                //Seems no way
+                //Then just go along direction
+                Vec2D dwp{wp_next.x - self.getX(), wp_next.y - self.getY()};
+                dwp = normalize(dwp);
+                dwp *= 600 - PathFinder::GRID_SIZE;
+                dir = m_pf->find_way(wp_next, PathFinder::WAYPOINT_RADIUS, 10);
+            }
+            auto my_cell = PathFinder::world_to_cell({self.getX(), self.getY()});
+            auto centered = PathFinder::cell_to_world(my_cell);
+            //VISUAL(fillCircle(centered.x, centered.y, 4, 0xFF0000));
+            centered += dir;
+            prev_point = centered;
+            //prev_point = {dir.x + self.getX(), dir.y + self.getY()};
+        }
+        VISUAL(line(self.getX(), self.getY(), prev_point.x, prev_point.y, 0xFF0000));
+        dir = {prev_point.x - self.getX(), prev_point.y - self.getY()};
+
+        if (dir.len() > EPS) {
+            m_pf->move_along(dir, move, false);
+        }
     }
 
-    if (current_action == NOTHING) {
-        current_action = MINIMIZE_DANGER;
+    if (current_action == BH_NOTHING || current_action == BH_MINIMIZE_DANGER) {
+        prev_action = current_action;
+        current_action = BH_MINIMIZE_DANGER;
 
-        Vec2D wp_prev = m_pf->get_previous_waypoint();
-        fields::ConstRingField pwp_field(wp_prev, 0, 8000, config::PREV_WAYPOINT_ATTRACTION);
-        dir = damage_avoidance + pwp_field.apply_force(self.getX(), self.getY()) + obs_avoid;
-
+        m_pf->get_previous_waypoint();
+        //VISUAL(circle(wp_prev.x, wp_prev.y, 100, 0x000077));
         //Shoot to enemy, while retreat
         const bool have_target = m_ev->choose_enemy();
         if (have_target) {
             m_ev->destroy(move);
         }
+        Point2D from{self.getX(), self.getY()};
+        for (int i = 0; i < 100; ++i) {
+            dir = damage_avoid_vector(from);
+            from += dir;
+        }
+        //if (prev_action != current_action || self.getDistanceTo(prev_point.x, prev_point.y) <= 1) {
+            dir = m_pf->find_way(from, PathFinder::GRID_SIZE * 2, 10);
+        //    prev_point = {self.getX() + dir.x, self.getY() + dir.y};
+        //} else {
+        //    dir = {prev_point.x - self.getX(), prev_point.y - self.getY()};
+        //}
         m_pf->move_along(dir, move, have_target);
     }
 
@@ -133,14 +170,17 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     char buf[10];
     char c = 'N';
     switch (current_action) {
-        case MINIMIZE_DANGER:
+        case BH_MINIMIZE_DANGER:
             c = 'M';
             break;
-        case ATTACK:
+        case BH_ATTACK:
             c = 'A';
             break;
-        case SCOUT:
-            c = 'S';
+        case BH_SCOUT:
+            c = 'R';
+            break;
+        case BH_NOTHING:
+            c = 'N';
             break;
     }
     sprintf(buf, "%c %3.1lf%%", c, m_danger_map.get_value(self.getX(), self.getY()));
@@ -194,61 +234,7 @@ bool MyStrategy::initialize_strategy(const model::Wizard &self, const model::Wor
     return true;
 }
 
-geom::Vec2D MyStrategy::repelling_obs_avoidance_vector() {
-    Vec2D ret{0, 0};
-
-
-    const auto &buildings = m_i.w->getBuildings();
-    const auto &wizards = m_i.w->getWizards();
-    const auto &trees = m_i.w->getTrees();
-    const auto &creeps = m_i.w->getMinions();
-
-    const auto &avoid = [](double center_x, double center_y, double radius, const model::CircularUnit *who) -> Vec2D {
-        double dist = radius + who->getRadius() + config::OBS_AVOID_EXTRA_DISTANCE;
-        /*
-         * В середине большое значение, зависящее от радиуса
-         * (чтобы объекты с разным радиусам толкали с одинаковой силой)
-         * Экспоненциальное угасание к концу
-         */
-        //auto cfg = fields::ExpConfig::from_two_points(config::OBS_AVOID_FORCE, dist, 0);
-        auto field = fields::ConstRingField({center_x, center_y}, 0, dist, -config::OBS_AVOID_FORCE);
-        auto vec = field.apply_force(who->getX(), who->getY());
-        //if (vec.len() > EPS) {
-        //    printf("Avoid: (%lf; %lf)\n", vec.x, vec.y);
-        //}
-        return vec;
-    };
-
-    for (const auto &item : buildings) {
-        ret += avoid(item.getX(), item.getY(), item.getRadius(), m_i.s);
-    }
-    for (const auto &item : wizards) {
-        if (item.isMe()) {
-            continue;
-        }
-        ret += avoid(item.getX(), item.getY(), item.getRadius(), m_i.s);
-    }
-    for (const auto &item : trees) {
-        ret += avoid(item.getX(), item.getY(), item.getRadius(), m_i.s);
-    }
-    for (const auto &item : creeps) {
-        ret += avoid(item.getX(), item.getY(), item.getRadius(), m_i.s);
-    }
-
-    std::initializer_list<Vec2D> walls{
-        {m_i.s->getX(),      0},
-        {m_i.s->getX(),      m_i.w->getWidth()},
-        {0,                  m_i.s->getY()},
-        {m_i.w->getHeight(), m_i.s->getY()}
-    };
-    for (const auto &wall : walls) {
-        ret += avoid(wall.x, wall.y, 0, m_i.s);
-    }
-
-    return ret;
-}
-
-geom::Vec2D MyStrategy::repelling_damage_avoidance_vector() {
+geom::Vec2D MyStrategy::damage_avoid_vector(const Point2D &from) {
     constexpr double ANGLE_STEP = 5;
     constexpr int all_steps = static_cast<int>((360 + ANGLE_STEP - 1) / ANGLE_STEP);
     std::array<double, all_steps> forces;
@@ -270,8 +256,8 @@ geom::Vec2D MyStrategy::repelling_damage_avoidance_vector() {
         }
 
         Vec2D cur{len * cos(angle), len * sin(angle)};
-        cur.x += m_i.s->getX();
-        cur.y += m_i.s->getY();
+        cur.x += from.x;
+        cur.y += from.y;
         forces[i] = m_danger_map.get_value(cur.x, cur.y);
     }
 
@@ -283,7 +269,6 @@ geom::Vec2D MyStrategy::repelling_damage_avoidance_vector() {
     }
 
     double angle = deg_to_rad(min_idx * ANGLE_STEP);
-    //Vec2D best{m_i.s->getX(), m_i.s->getY()};
     Vec2D best;
     if (angle > pi) {
         best.x += len2 * cos(angle);
@@ -295,14 +280,18 @@ geom::Vec2D MyStrategy::repelling_damage_avoidance_vector() {
 
 
     const double cur_danger = m_danger_map.get_value(m_i.s->getX(), m_i.s->getY());
-#ifdef RUNNING_LOCAL
-    Vec2D to_draw = normalize(best) * 50;
-    if (cur_danger > 0) {
-        VISUAL(line(m_i.s->getX(), m_i.s->getY(), m_i.s->getX() + to_draw.x, m_i.s->getY() + to_draw.y, 0x00CC00));
-    }
-#endif
+//#ifdef RUNNING_LOCAL
+//    Vec2D to_draw = normalize(best) * 50;
+//    if (cur_danger > 0) {
+//        VISUAL(line(from.x, from.y, from.x + to_draw.x, from.y + to_draw.y, 0x00CC00));
+//    }
+//#endif
     best = normalize(best);
-    best *= cur_danger;
+    if (angle > pi) {
+        best *= len2;
+    } else {
+        best *= len;
+    }
     return best;
 }
 
