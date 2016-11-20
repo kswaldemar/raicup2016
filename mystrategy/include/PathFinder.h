@@ -22,7 +22,7 @@ public:
     //Hardcoded
     static constexpr int WORLD_SIZE = 4000;
     static constexpr int CELL_COUNT = (WORLD_SIZE + GRID_SIZE - 1)/ GRID_SIZE;
-    static constexpr int SEARCH_MAX_DIST = 2 * (600 / GRID_SIZE);
+    static constexpr int SEARCH_RADIUS = (600 / GRID_SIZE);
 
 
     struct CellCoord {
@@ -53,7 +53,7 @@ public:
     PathFinder(const InfoPack &info);
 
 
-    void update_info_pack(const InfoPack &info);
+    void update_info(const InfoPack &info, const fields::FieldMap &danger_map);
 
     geom::Point2D get_next_waypoint();
 
@@ -61,12 +61,10 @@ public:
 
     void move_along(const geom::Vec2D &dir, model::Move &move, bool hold_face);
 
-    void update_reference(const fields::FieldMap &danger_map);
-
     /**
      * Find best way to destination with radius
      */
-    geom::Vec2D find_way(const geom::Point2D &to, double radius, double max_danger);
+    std::list<geom::Point2D> find_way(const geom::Point2D &to, double radius, double max_danger);
 
     bool check_no_collision(const geom::Point2D &pt, double radius) const;
 

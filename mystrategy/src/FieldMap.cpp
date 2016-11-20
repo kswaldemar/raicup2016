@@ -32,6 +32,10 @@ double FieldMap::get_value(double x, double y) const {
     return force;
 }
 
+double FieldMap::get_value(const geom::Point2D &pt) const {
+    return get_value(pt.x, pt.y);
+}
+
 void FieldMap::clear() {
     m_fields.clear();
 }

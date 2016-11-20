@@ -23,6 +23,8 @@ public:
 
     double get_value(double x, double y) const;
 
+    double get_value(const geom::Point2D &pt) const;
+
     void clear();
 private:
     std::list<std::unique_ptr<IVectorField>> m_fields;

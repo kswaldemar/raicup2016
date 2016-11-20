@@ -15,12 +15,7 @@ using namespace geom;
 const double EPS = 0.00003;
 InfoPack g_info;
 
-enum Behaviour {
-    BH_ATTACK,
-    BH_SCOUT,
-    BH_MINIMIZE_DANGER,
-    BH_NOTHING
-};
+
 
 
 void MyStrategy::move(const Wizard &self, const World &world, const Game &game, Move &move) {
@@ -49,9 +44,11 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     /*
      * Per tick initialization
      */
-    m_pf->update_info_pack(m_i);
+    m_pf->update_info(m_i, m_danger_map);
     m_ev->update_info_pack(m_i);
-    m_pf->update_reference(m_danger_map);
+    for (int i = 0; i < BH_COUNT; ++i) {
+        m_bhs[i].update_clock(world.getTickIndex());
+    }
 
     //Pre actions
     VISUAL(beginPre());
@@ -63,14 +60,13 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     VISUAL(beginPost());
 
 
-    Behaviour current_action = BH_NOTHING;
-    static Behaviour prev_action = BH_NOTHING;
-    static Point2D prev_point{0, 0};
+    Behaviour current_action = BH_COUNT;
+    static Behaviour prev_action = BH_COUNT;
 
     Vec2D dir;
     double danger_level = m_danger_map.get_value(self.getX(), self.getY());
 
-    if (danger_level <= config::ATTACK_THRESH && current_action == BH_NOTHING) {
+    if (danger_level <= config::ATTACK_THRESH && current_action == BH_COUNT) {
         //Danger is ok to attack
         //TODO: Check many enemies and attack if not too dangerous
 
@@ -84,55 +80,50 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             current_action = BH_ATTACK;
             auto description = m_ev->destroy(move);
             if (self.getDistanceTo(*description.unit) >= description.att_range) {
-                if (prev_action != current_action || self.getDistanceTo(prev_point.x, prev_point.y) <= 1) {
-                    dir = m_pf->find_way({description.unit->getX(), description.unit->getY()}, description.att_range, 0);
-                    prev_point = {self.getX() + dir.x, self.getY() + dir.y};
-                } else {
-                    dir = {prev_point.x - self.getX(), prev_point.y - self.getY()};
+                m_bhs[BH_ATTACK].update_target(*description.unit);
+                if (m_bhs[BH_ATTACK].is_path_spoiled()) {
+                    m_bhs[BH_ATTACK].load_path(
+                        m_pf->find_way({description.unit->getX(), description.unit->getY()}, description.att_range, 0),
+                        *description.unit
+                    );
                 }
+                dir = m_bhs[BH_ATTACK].get_next_direction(self);
                 m_pf->move_along(dir, move, true);
             } else {
-                current_action = BH_MINIMIZE_DANGER;
+                if (self.getDistanceTo(*description.unit) <= description.att_range) {
+                    current_action = BH_MINIMIZE_DANGER;
+                }
             }
         }
     }
 
-    if (danger_level <= config::SCOUT_THRESH && current_action == BH_NOTHING) {
+    if (danger_level <= config::SCOUT_THRESH && current_action == BH_COUNT) {
         //Move by waypoints
         prev_action = current_action;
         current_action = BH_SCOUT;
         Vec2D wp_next = m_pf->get_next_waypoint();
         VISUAL(circle(wp_next.x, wp_next.y, PathFinder::WAYPOINT_RADIUS, 0x001111));
-        if (prev_action != current_action || self.getDistanceTo(prev_point.x, prev_point.y) <= 4) {
-            dir = m_pf->find_way(wp_next, PathFinder::WAYPOINT_RADIUS, 10);
-            if (dir.len() < EPS) {
-                //Seems no way
-                //Then just go along direction
-                Vec2D dwp{wp_next.x - self.getX(), wp_next.y - self.getY()};
-                dwp = normalize(dwp);
-                dwp *= 600 - PathFinder::GRID_SIZE;
-                dir = m_pf->find_way(wp_next, PathFinder::WAYPOINT_RADIUS, 10);
-            }
-            auto my_cell = PathFinder::world_to_cell({self.getX(), self.getY()});
-            auto centered = PathFinder::cell_to_world(my_cell);
-            //VISUAL(fillCircle(centered.x, centered.y, 4, 0xFF0000));
-            centered += dir;
-            prev_point = centered;
-            //prev_point = {dir.x + self.getX(), dir.y + self.getY()};
+        m_bhs[BH_SCOUT].update_target(wp_next, PathFinder::WAYPOINT_RADIUS);
+        if (m_bhs[BH_SCOUT].is_path_spoiled()) {
+            auto way = m_pf->find_way(wp_next, PathFinder::WAYPOINT_RADIUS - PathFinder::GRID_SIZE, 10);
+            m_bhs[BH_SCOUT].load_path(
+                std::move(way),
+                wp_next,
+                PathFinder::WAYPOINT_RADIUS
+            );
         }
-        VISUAL(line(self.getX(), self.getY(), prev_point.x, prev_point.y, 0xFF0000));
-        dir = {prev_point.x - self.getX(), prev_point.y - self.getY()};
-
+        dir = m_bhs[BH_SCOUT].get_next_direction(self);
+        VISUAL(line(self.getX(), self.getY(), self.getX() + dir.x, self.getY() + dir.y, 0xFF0000));
         if (dir.len() > EPS) {
             m_pf->move_along(dir, move, false);
         }
     }
 
-    if (current_action == BH_NOTHING || current_action == BH_MINIMIZE_DANGER) {
+    if (current_action == BH_COUNT || current_action == BH_MINIMIZE_DANGER) {
         prev_action = current_action;
         current_action = BH_MINIMIZE_DANGER;
 
-        m_pf->get_previous_waypoint();
+        m_pf->get_previous_waypoint(); //Update waypoints
         //VISUAL(circle(wp_prev.x, wp_prev.y, 100, 0x000077));
         //Shoot to enemy, while retreat
         const bool have_target = m_ev->choose_enemy();
@@ -144,12 +135,15 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             dir = damage_avoid_vector(from);
             from += dir;
         }
-        //if (prev_action != current_action || self.getDistanceTo(prev_point.x, prev_point.y) <= 1) {
-            dir = m_pf->find_way(from, PathFinder::GRID_SIZE * 2, 10);
-        //    prev_point = {self.getX() + dir.x, self.getY() + dir.y};
-        //} else {
-        //    dir = {prev_point.x - self.getX(), prev_point.y - self.getY()};
-        //}
+        if (m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled()) {
+            m_bhs[BH_MINIMIZE_DANGER].update_target(from, PathFinder::GRID_SIZE * 2);
+            m_bhs[BH_MINIMIZE_DANGER].load_path(
+                m_pf->find_way(from, PathFinder::GRID_SIZE * 2, 10),
+                from,
+                PathFinder::GRID_SIZE * 2
+            );
+        }
+        dir = m_bhs[BH_MINIMIZE_DANGER].get_next_direction(self);
         m_pf->move_along(dir, move, have_target);
     }
 
@@ -167,8 +161,11 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     //    damage_avoidance.x, damage_avoidance.y);
 
 #ifdef RUNNING_LOCAL
+    dir *= 3;
+    VISUAL(line(self.getX(), self.getY(), self.getX() + dir.x, self.getY() + dir.y, 0xB325DA));
     char buf[10];
     char c = 'N';
+    assert(current_action != BH_COUNT);
     switch (current_action) {
         case BH_MINIMIZE_DANGER:
             c = 'M';
@@ -178,9 +175,6 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             break;
         case BH_SCOUT:
             c = 'R';
-            break;
-        case BH_NOTHING:
-            c = 'N';
             break;
     }
     sprintf(buf, "%c %3.1lf%%", c, m_danger_map.get_value(self.getX(), self.getY()));

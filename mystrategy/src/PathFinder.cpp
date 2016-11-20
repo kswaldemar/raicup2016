@@ -90,8 +90,9 @@ PathFinder::PathFinder(const InfoPack &info) {
     m_last_wp = m_waypoints->cbegin();
 }
 
-void PathFinder::update_info_pack(const InfoPack &info) {
+void PathFinder::update_info(const InfoPack &info, const fields::FieldMap &danger_map) {
     m_i = &info;
+    m_danger_map = &danger_map;
     //Remember each obstacle
     m_obstacles.clear();
     for (const auto &i : m_i->w->getTrees()) {
@@ -160,10 +161,6 @@ void PathFinder::move_along(const geom::Vec2D &dir, model::Move &move, bool hold
     }
 }
 
-void PathFinder::update_reference(const fields::FieldMap &danger_map) {
-    m_danger_map = &danger_map;
-}
-
 bool PathFinder::check_no_collision(const Point2D &pt, double radius) const {
     const bool wall =    pt.x <= radius || pt.x >= m_i->g->getMapSize() - radius
                       || pt.y <= radius || pt.y >= m_i->g->getMapSize() - radius;
@@ -181,19 +178,19 @@ bool PathFinder::check_no_collision(const Point2D &pt, double radius) const {
 
 }
 
-geom::Vec2D PathFinder::find_way(const geom::Point2D &to, double radius, double max_danger) {
+std::list<Point2D> PathFinder::find_way(const geom::Point2D &to, double radius, double max_danger) {
     const double ex_r = m_i->s->getRadius();
 
     //Clear map
     for (int i = 0; i < m_map.size(); ++i) {
         for (int j = 0; j < m_map[i].size(); ++j) {
-            m_map[i][j] = {config::DAMAGE_MAX_FEAR, 20000, {0, 0}, {i, j}};
+            m_map[i][j] = {1e9, 1e6, {0, 0}, {i, j}};
         };
     }
 
     std::queue<CellCoord> way;
     CellCoord start = world_to_cell({m_i->s->getX(), m_i->s->getY()});
-    auto wpt = cell_to_world(start);
+    //auto wpt = cell_to_world(start);
     //VISUAL(fillCircle(wpt.x, wpt.y, 7, 0xe6005c));
     m_map[start.x][start.y].dist = 0;
     way.push(start);
@@ -237,7 +234,9 @@ geom::Vec2D PathFinder::find_way(const geom::Point2D &to, double radius, double 
         }
     }
 
+    std::list<Point2D> ret;
     if (best) {
+        ret.push_front(cell_to_world(best->me));
         CellCoord prev = best->me;
         CellCoord next;
         while (true) {
@@ -246,27 +245,35 @@ geom::Vec2D PathFinder::find_way(const geom::Point2D &to, double radius, double 
             if (next.x == start.x && next.y == start.y) {
                 break;
             }
+            ret.push_front(cell_to_world(next));
             VISUAL(line(next.x * GRID_SIZE, next.y * GRID_SIZE, prev.x * GRID_SIZE, prev.y * GRID_SIZE, 0x0000ff));
             prev = next;
         }
-        return geom::Vec2D((prev.x - start.x) * GRID_SIZE,  (prev.y - start.y) * GRID_SIZE);
     }
-    return {0, 0};
+    return ret;
 }
 
 bool PathFinder::is_correct_cell(const PathFinder::CellCoord &tocheck, const PathFinder::CellCoord &initial) {
     const bool inbound = tocheck.x >= 0 && tocheck.x < CELL_COUNT && tocheck.y >= 0 && tocheck.y < CELL_COUNT;
-    const int dist = std::abs(tocheck.x - initial.x) + std::abs(tocheck.y - initial.y);
-    return inbound && dist <= SEARCH_MAX_DIST;
+    geom::Vec2D dist(tocheck.x - initial.x, tocheck.y - initial.y);
+    return inbound && dist.len() <= SEARCH_RADIUS;
 }
 
 bool PathFinder::update_if_better(PathFinder::Cell &from, PathFinder::Cell &to) {
-    geom::Vec2D dist(from.me.x - to.me.x, from.me.y - to.me.y);
-    dist *= GRID_SIZE;
+    static constexpr double diag_cost = 1.4142135623730951 * GRID_SIZE;
+    int manh = std::abs(to.me.x - from.me.x) + std::abs(to.me.y - from.me.y);
+    double dist;
+    if (manh > 1) {
+        assert(manh == 2);
+        dist = diag_cost;
+    } else {
+        assert(manh == 1);
+        dist = manh * GRID_SIZE;
+    }
     PathFinder::Cell candidate = from;
-    candidate.dist += dist.len();
+    candidate.dist += dist;
     //Sum dangers
-    candidate.danger += m_danger_map->get_value(to.me.x * GRID_SIZE, to.me.y * GRID_SIZE);
+    candidate.danger += m_danger_map->get_value(cell_to_world(from.me));
     if (candidate > to) {
         to.dist = candidate.dist;
         to.danger = candidate.danger;

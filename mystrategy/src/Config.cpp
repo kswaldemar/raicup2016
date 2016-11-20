@@ -18,7 +18,7 @@ const double ENEMY_DETECT_RANGE = 600;
 
 const double CHOOSEN_ENEMY_ATTRACT = 70;
 
-const double ATTACK_THRESH = 50;
+const double ATTACK_THRESH = 70;
 
 const double SCOUT_THRESH = 50;
 

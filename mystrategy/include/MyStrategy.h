@@ -10,12 +10,21 @@
 #include "Eviscerator.h"
 #include "UnitDesc.h"
 #include "FieldMap.h"
+#include "MovementHandler.h"
 
 #include <memory>
 #include <list>
 
 class MyStrategy : public Strategy {
 public:
+
+    enum Behaviour {
+        BH_ATTACK,
+        BH_SCOUT,
+        BH_MINIMIZE_DANGER,
+        BH_COUNT
+    };
+
     MyStrategy();
 
     void move(const model::Wizard& self,
@@ -51,6 +60,7 @@ private:
     std::list<TowerDesc> m_enemy_towers;
     //Danger map
     fields::FieldMap m_danger_map = fields::FieldMap(fields::FieldMap::ADD);
+    std::array<MovementHandler, BH_COUNT> m_bhs;
 };
 
 #endif
