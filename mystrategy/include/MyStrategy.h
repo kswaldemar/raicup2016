@@ -10,12 +10,21 @@
 #include "Eviscerator.h"
 #include "UnitDesc.h"
 #include "FieldMap.h"
+#include "MovementHandler.h"
 
 #include <memory>
 #include <list>
 
 class MyStrategy : public Strategy {
 public:
+
+    enum Behaviour {
+        BH_ATTACK,
+        BH_SCOUT,
+        BH_MINIMIZE_DANGER,
+        BH_COUNT
+    };
+
     MyStrategy();
 
     void move(const model::Wizard& self,
@@ -25,9 +34,7 @@ public:
 
     void initialize_info_pack(const model::Wizard &self, const model::World &world, const model::Game &game);
 
-    geom::Vec2D repelling_obs_avoidance_vector();
-
-    geom::Vec2D repelling_damage_avoidance_vector();
+    geom::Vec2D damage_avoid_vector(const geom::Point2D &from);
 
     bool initialize_strategy(const model::Wizard &self, const model::World &world, const model::Game &game);
 
@@ -53,6 +60,7 @@ private:
     std::list<TowerDesc> m_enemy_towers;
     //Danger map
     fields::FieldMap m_danger_map = fields::FieldMap(fields::FieldMap::ADD);
+    std::array<MovementHandler, BH_COUNT> m_bhs;
 };
 
 #endif
