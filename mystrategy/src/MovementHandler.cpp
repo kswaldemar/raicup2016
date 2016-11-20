@@ -2,6 +2,7 @@
 // Created by valdemar on 20.11.16.
 //
 
+#include "VisualDebug.h"
 #include "MovementHandler.h"
 
 bool MovementHandler::is_path_spoiled() {
@@ -43,13 +44,30 @@ void MovementHandler::load_path(std::list<geom::Point2D> &&path, const model::Ci
 }
 
 geom::Vec2D MovementHandler::get_next_direction(const geom::Point2D &self) {
-    geom::Vec2D dist = self - *m_it;
-    if (dist.len() <= 4) {
-        ++m_it;
+#ifdef RUNNING_LOCAL
+    auto st_p = m_it;
+    auto prev = self;
+    while (st_p != m_path.cend()) {
+        VISUAL(line(prev.x, prev.y, st_p->x, st_p->y, 0xE813D1));
+        prev = *st_p;
+        ++st_p;
     }
+#endif
     if (m_it != m_path.cend()) {
-        return *m_it - self;
+        auto next_pt = m_it;
+        ++next_pt;
+
+        geom::Vec2D dist1 = self - *m_it;
+        geom::Vec2D dist2 = self - *next_pt;
+        if (dist1.len() <= 4 || (next_pt != m_path.cend() && dist2.len() <= (*next_pt - *m_it).len())) {
+            ++m_it;
+        }
+
+        if (m_it != m_path.cend()) {
+            return *m_it - self;
+        }
     }
+
     return {0, 0};
 }
 

@@ -59,14 +59,14 @@ PathFinder::PathFinder(const InfoPack &info) {
         {2200.0, map_size - 200.0},
         {2600.0, map_size - 200.0},
         {3000.0, map_size - 200.0},
-        {500,   500.0},
-        {map_size - 200.0, 600.0},
-        {map_size - 200.0, 1000.0},
-        {map_size - 200.0, 1400.0},
-        {map_size - 200.0, 1800.0},
-        {map_size - 200.0, 2200.0},
-        {map_size - 200.0, 2600.0},
+        {map_size - 500,   map_size - 500.0},
         {map_size - 200.0, 3000.0},
+        {map_size - 200.0, 2600.0},
+        {map_size - 200.0, 2200.0},
+        {map_size - 200.0, 1800.0},
+        {map_size - 200.0, 1400.0},
+        {map_size - 200.0, 1000.0},
+        {map_size - 200.0, 600.0},
     };
 
     switch (m_i->s->getId()) {

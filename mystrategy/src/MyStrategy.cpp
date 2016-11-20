@@ -106,6 +106,15 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         m_bhs[BH_SCOUT].update_target(wp_next, PathFinder::WAYPOINT_RADIUS);
         if (m_bhs[BH_SCOUT].is_path_spoiled()) {
             auto way = m_pf->find_way(wp_next, PathFinder::WAYPOINT_RADIUS - PathFinder::GRID_SIZE, 10);
+            if (way.empty()) {
+                //Path to waypoint not found, try to move in direction
+                Vec2D wp_dir{wp_next.x - self.getX(), wp_next.y - self.getY()};
+                wp_dir = normalize(wp_dir);
+                wp_dir *= PathFinder::SEARCH_RADIUS * PathFinder::GRID_SIZE - PathFinder::GRID_SIZE;
+                wp_dir.x += self.getX();
+                wp_dir.y += self.getY();
+                way = m_pf->find_way(wp_dir, 150, 10);
+            }
             m_bhs[BH_SCOUT].load_path(
                 std::move(way),
                 wp_next,
@@ -130,12 +139,19 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         if (have_target) {
             m_ev->destroy(move);
         }
-        Point2D from{self.getX(), self.getY()};
-        for (int i = 0; i < 100; ++i) {
-            dir = damage_avoid_vector(from);
-            from += dir;
-        }
+
         if (m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled()) {
+
+            Point2D from{self.getX(), self.getY()};
+            for (int i = 0; i < 100; ++i) {
+                dir = damage_avoid_vector(from);
+                if (dir.len() < EPS) {
+                    //Local minimum
+                    break;
+                }
+                from += dir;
+            }
+
             m_bhs[BH_MINIMIZE_DANGER].update_target(from, PathFinder::GRID_SIZE * 2);
             m_bhs[BH_MINIMIZE_DANGER].load_path(
                 m_pf->find_way(from, PathFinder::GRID_SIZE * 2, 10),
@@ -231,8 +247,8 @@ bool MyStrategy::initialize_strategy(const model::Wizard &self, const model::Wor
 geom::Vec2D MyStrategy::damage_avoid_vector(const Point2D &from) {
     constexpr double ANGLE_STEP = 5;
     constexpr int all_steps = static_cast<int>((360 + ANGLE_STEP - 1) / ANGLE_STEP);
-    std::array<double, all_steps> forces;
-    forces.fill(config::DAMAGE_MAX_FEAR);
+    std::array<double, all_steps + 1> forces;
+    forces.fill(1e9);
 
     Vec2D fwd{m_i.g->getWizardForwardSpeed(), m_i.g->getWizardStrafeSpeed()};
     double len = fwd.len();
@@ -252,14 +268,23 @@ geom::Vec2D MyStrategy::damage_avoid_vector(const Point2D &from) {
         Vec2D cur{len * cos(angle), len * sin(angle)};
         cur.x += from.x;
         cur.y += from.y;
-        forces[i] = m_danger_map.get_value(cur.x, cur.y);
+        if (m_pf->check_no_collision(cur, m_i.s->getRadius())) {
+            forces[i] = m_danger_map.get_value(cur.x, cur.y);
+        }
     }
 
-    int min_idx = 0;
+    const double cur_danger = m_danger_map.get_value(m_i.s->getX(), m_i.s->getY());
+    int min_idx = all_steps;
+    forces[all_steps] = 1e9;
     for (int i = 0; i < forces.size(); ++i) {
         if (forces[i] < forces[min_idx]) {
             min_idx = i;
         }
+    }
+
+    if (min_idx == all_steps) {
+        //Local minimum found, so best to stay here
+        return {0, 0};
     }
 
     double angle = deg_to_rad(min_idx * ANGLE_STEP);
@@ -273,13 +298,7 @@ geom::Vec2D MyStrategy::damage_avoid_vector(const Point2D &from) {
     }
 
 
-    const double cur_danger = m_danger_map.get_value(m_i.s->getX(), m_i.s->getY());
-//#ifdef RUNNING_LOCAL
-//    Vec2D to_draw = normalize(best) * 50;
-//    if (cur_danger > 0) {
-//        VISUAL(line(from.x, from.y, from.x + to_draw.x, from.y + to_draw.y, 0x00CC00));
-//    }
-//#endif
+
     best = normalize(best);
     if (angle > pi) {
         best *= len2;
