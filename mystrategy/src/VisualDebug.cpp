@@ -1,3 +1,5 @@
+#ifdef RUNNING_LOCAL
+
 #include "VisualDebug.h"
 
 #if (defined _WIN32 || defined _WIN64)
@@ -34,6 +36,7 @@ namespace {
 #include <cstdlib>
 
 #include <cstring>
+
 
 std::string Debug::DEFAULT_HOST = "127.0.0.1";
 std::string Debug::DEFAULT_PORT = "13579";
@@ -189,3 +192,4 @@ Debug &Debug::getInstance() {
     static Debug singletone;
     return singletone;
 }
+#endif

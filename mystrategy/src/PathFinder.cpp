@@ -3,14 +3,14 @@
 //
 
 #include "PathFinder.h"
-#include "model/LaneType.h"
+#include "Logger.h"
+#include "VisualDebug.h"
 #include "Config.h"
+#include "model/LaneType.h"
 
 #include <map>
 #include <cassert>
 #include <queue>
-#include <VisualDebug.h>
-#include <Logger.h>
 
 const int PathFinder::WAYPOINT_RADIUS = 200;
 

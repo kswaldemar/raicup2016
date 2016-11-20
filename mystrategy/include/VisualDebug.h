@@ -1,5 +1,5 @@
 #pragma once
-
+#ifdef RUNNING_LOCAL
 #include <cstdlib>
 #include <cstdio>
 #include <string>
@@ -37,7 +37,7 @@ private:
 
     int sfd;
 };
-
+#endif
 #ifdef RUNNING_LOCAL
     #define VISUAL(func) Debug::getInstance().func
 #else
