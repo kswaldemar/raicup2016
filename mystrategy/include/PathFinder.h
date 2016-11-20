@@ -18,7 +18,7 @@ class PathFinder {
 public:
     static const int WAYPOINT_RADIUS;
     //Pathfind grid step
-    static constexpr int GRID_SIZE = 20;
+    static constexpr int GRID_SIZE = 15;
     //Hardcoded
     static constexpr int WORLD_SIZE = 4000;
     static constexpr int CELL_COUNT = (WORLD_SIZE + GRID_SIZE - 1)/ GRID_SIZE;
