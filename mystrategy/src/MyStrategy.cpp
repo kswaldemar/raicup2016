@@ -39,7 +39,9 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     update_shadow_towers(m_enemy_towers, world, self.getFaction());
 
     //Calculate danger map
-    update_danger_map();
+    if (world.getTickIndex() % 5 == 0) {
+        update_danger_map();
+    }
 
     /*
      * Per tick initialization
@@ -140,26 +142,28 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             m_ev->destroy(move);
         }
 
-        if (m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled()) {
-
-            Point2D from{self.getX(), self.getY()};
-            for (int i = 0; i < 100; ++i) {
-                dir = damage_avoid_vector(from);
-                if (dir.len() < EPS) {
-                    //Local minimum
-                    break;
-                }
-                from += dir;
-            }
-
-            m_bhs[BH_MINIMIZE_DANGER].update_target(from, PathFinder::GRID_SIZE * 2);
-            m_bhs[BH_MINIMIZE_DANGER].load_path(
-                m_pf->find_way(from, PathFinder::GRID_SIZE * 2, 10),
-                from,
-                PathFinder::GRID_SIZE * 2
-            );
-        }
-        dir = m_bhs[BH_MINIMIZE_DANGER].get_next_direction(self);
+        Point2D from{self.getX(), self.getY()};
+        dir = damage_avoid_vector(from);
+        //if (m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled()) {
+        //
+        //    Point2D from{self.getX(), self.getY()};
+        //    for (int i = 0; i < 100; ++i) {
+        //        dir = damage_avoid_vector(from);
+        //        if (dir.len() < EPS) {
+        //            //Local minimum
+        //            break;
+        //        }
+        //        from += dir;
+        //    }
+        //
+        //    m_bhs[BH_MINIMIZE_DANGER].update_target(from, PathFinder::GRID_SIZE * 2);
+        //    m_bhs[BH_MINIMIZE_DANGER].load_path(
+        //        m_pf->find_way(from, PathFinder::GRID_SIZE * 2, 10),
+        //        from,
+        //        PathFinder::GRID_SIZE * 2
+        //    );
+        //}
+        //dir = m_bhs[BH_MINIMIZE_DANGER].get_next_direction(self);
         m_pf->move_along(dir, move, have_target);
     }
 
@@ -474,6 +478,36 @@ void MyStrategy::update_danger_map() {
         sprintf(buf, "%3d", tower.rem_cooldown);
         VISUAL(text(tower.x, tower.y + 30, buf, 0x004400));
     }
+
+
+    //ONLY FOR TEST. DO IT IN RIGHT WAY
+    std::vector<const model::CircularUnit *> obstacles;
+    for (const auto &i : m_i.w->getTrees()) {
+        obstacles.push_back(&i);
+    }
+    for (const auto &i : m_i.w->getBuildings()) {
+        obstacles.push_back(&i);
+    }
+    for (const auto &i : m_i.w->getWizards()) {
+        if (i.isMe()) {
+            continue;
+        }
+        obstacles.push_back(&i);
+    }
+    for (const auto &i : m_i.w->getMinions()) {
+        obstacles.push_back(&i);
+    }
+    for (const auto &i : obstacles) {
+        damage_fields.add_field(
+            std::make_unique<fields::ConstRingField>(
+                Point2D{i->getX(), i->getY()},
+                0,
+                i->getRadius() + m_i.s->getRadius() + 1,
+                1e6
+            )
+        );
+    }
+
 }
 
 void MyStrategy::visualise_danger_map(const fields::FieldMap &danger, const geom::Point2D &center) {
