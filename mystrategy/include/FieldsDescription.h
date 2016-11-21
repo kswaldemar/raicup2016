@@ -17,11 +17,11 @@ namespace fields {
 /**
  * Поле влияющее в диапазоне r1 <= x <= r2 с постоянной силой.
  */
-class ConstRingField : public IVectorField {
+class ConstRingField : public IField {
 public:
     ConstRingField(const geom::Point2D &center, double r1, double r2, double force);
 
-    geom::Vec2D apply_force(double x, double y) const override;
+    double apply_force(double x, double y) const override;
 protected:
     double m_r1;
     double m_r2;
@@ -51,11 +51,11 @@ struct ExpConfig {
 /**
  * Поле влиющее в диапазоне r1 <= x <= r2 с силой, изменяющейся экспоненциально от расстояния
  */
-class ExpRingField : public IVectorField {
+class ExpRingField : public IField {
 public:
     ExpRingField(const geom::Point2D &center, double r1, double r2, bool is_attractive, const ExpConfig &conf);
 
-    geom::Vec2D apply_force(double x, double y) const override;
+    double apply_force(double x, double y) const override;
 
 protected:
     double m_r1;

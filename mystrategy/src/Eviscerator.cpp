@@ -242,5 +242,6 @@ Eviscerator::DestroyDesc Eviscerator::destroy(model::Move &move) {
 
 geom::Vec2D Eviscerator::apply_enemy_attract_field(const model::Wizard &me) {
     assert(m_attract_field);
-    return m_attract_field->apply_force(me.getX(), me.getY());
+    //return m_attract_field->apply_force(me.getX(), me.getY());
+    return {0, 0};
 }

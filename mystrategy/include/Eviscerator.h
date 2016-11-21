@@ -62,5 +62,5 @@ private:
     const model::Building *m_en_building;
     const model::Minion *m_en_minion;
     //Attraction to choosen enemy
-    std::unique_ptr<fields::IVectorField> m_attract_field;
+    std::unique_ptr<fields::IField> m_attract_field;
 };
