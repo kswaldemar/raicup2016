@@ -256,7 +256,7 @@ std::list<Point2D> PathFinder::find_way(const geom::Point2D &to, double radius, 
 bool PathFinder::is_correct_cell(const PathFinder::CellCoord &tocheck, const PathFinder::CellCoord &initial) {
     const bool inbound = tocheck.x >= 0 && tocheck.x < CELL_COUNT && tocheck.y >= 0 && tocheck.y < CELL_COUNT;
     geom::Vec2D dist(tocheck.x - initial.x, tocheck.y - initial.y);
-    return inbound && dist.len() <= SEARCH_RADIUS;
+    return inbound && dist.sqr() <= (SEARCH_RADIUS * SEARCH_RADIUS);
 }
 
 bool PathFinder::update_if_better(PathFinder::Cell &from, PathFinder::Cell &to) {

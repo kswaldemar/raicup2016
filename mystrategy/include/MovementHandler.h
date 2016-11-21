@@ -12,7 +12,7 @@ class MovementHandler {
 public:
 
     static constexpr int PATH_SPOIL_TIME = 20;
-    static constexpr double MAX_TARGET_MOVEMENT = 10;
+    static constexpr int MAX_TARGET_MOVEMENT = 10;
 
     bool is_path_spoiled();
 

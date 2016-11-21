@@ -382,7 +382,7 @@ void MyStrategy::update_shadow_towers(std::list<TowerDesc> &towers,
         while (it != towers.cend()) {
             dist.x = it->x - vision.x;
             dist.y = it->y - vision.y;
-            if (dist.len() <= vision.r && !updated[idx]) {
+            if (dist.sqr() <= (vision.r * vision.r) && !updated[idx]) {
                 //We should see it, but it not appeared in world.getBuildings, so it is destroyed
                 LOG("Don't see tower: %3lf <= %3lf, %d\n", dist.len(), vision.r, (int) updated[idx]);
                 it = towers.erase(it);

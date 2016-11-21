@@ -42,10 +42,9 @@ ExpRingField::ExpRingField(const geom::Point2D &center,
 
 
 double ExpRingField::apply_force(double x, double y) const {
-    geom::Vec2D v(m_center.x - x, m_center.y - y);
-    double dist = v.sqr();
+    double dist = geom::sqr(m_center.x - x) + geom::sqr(m_center.y - y);
     if (dist >= m_r1 && dist <= m_r2) {
-        double mod = m_V * exp(-dist * m_k);
+        double mod = m_V * exp(-sqrt(dist) * m_k);
         return mod;
     }
     return 0;
