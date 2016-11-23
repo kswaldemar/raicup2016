@@ -85,7 +85,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
                 m_bhs[BH_ATTACK].update_target(*description.unit);
                 if (m_bhs[BH_ATTACK].is_path_spoiled()) {
                     m_bhs[BH_ATTACK].load_path(
-                        m_pf->find_way({description.unit->getX(), description.unit->getY()}, description.att_range, 0),
+                        m_pf->find_way({description.unit->getX(), description.unit->getY()}, description.att_range),
                         *description.unit
                     );
                 }
@@ -107,16 +107,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         VISUAL(circle(wp_next.x, wp_next.y, PathFinder::WAYPOINT_RADIUS, 0x001111));
         m_bhs[BH_SCOUT].update_target(wp_next, PathFinder::WAYPOINT_RADIUS);
         if (m_bhs[BH_SCOUT].is_path_spoiled()) {
-            auto way = m_pf->find_way(wp_next, PathFinder::WAYPOINT_RADIUS - PathFinder::GRID_SIZE, 10);
-            if (way.empty()) {
-                //Path to waypoint not found, try to move in direction
-                Vec2D wp_dir{wp_next.x - self.getX(), wp_next.y - self.getY()};
-                wp_dir = normalize(wp_dir);
-                wp_dir *= PathFinder::SEARCH_RADIUS * PathFinder::GRID_SIZE - PathFinder::GRID_SIZE;
-                wp_dir.x += self.getX();
-                wp_dir.y += self.getY();
-                way = m_pf->find_way(wp_dir, 150, 10);
-            }
+            auto way = m_pf->find_way(wp_next, PathFinder::WAYPOINT_RADIUS - PathFinder::GRID_SIZE);
             m_bhs[BH_SCOUT].load_path(
                 std::move(way),
                 wp_next,
@@ -481,32 +472,32 @@ void MyStrategy::update_danger_map() {
 
 
     //ONLY FOR TEST. DO IT IN RIGHT WAY
-    std::vector<const model::CircularUnit *> obstacles;
-    for (const auto &i : m_i.w->getTrees()) {
-        obstacles.push_back(&i);
-    }
-    for (const auto &i : m_i.w->getBuildings()) {
-        obstacles.push_back(&i);
-    }
-    for (const auto &i : m_i.w->getWizards()) {
-        if (i.isMe()) {
-            continue;
-        }
-        obstacles.push_back(&i);
-    }
-    for (const auto &i : m_i.w->getMinions()) {
-        obstacles.push_back(&i);
-    }
-    for (const auto &i : obstacles) {
-        damage_fields.add_field(
-            std::make_unique<fields::ConstRingField>(
-                Point2D{i->getX(), i->getY()},
-                0,
-                i->getRadius() + m_i.s->getRadius() + 1,
-                1e6
-            )
-        );
-    }
+    //std::vector<const model::CircularUnit *> obstacles;
+    //for (const auto &i : m_i.w->getTrees()) {
+    //    obstacles.push_back(&i);
+    //}
+    //for (const auto &i : m_i.w->getBuildings()) {
+    //    obstacles.push_back(&i);
+    //}
+    //for (const auto &i : m_i.w->getWizards()) {
+    //    if (i.isMe()) {
+    //        continue;
+    //    }
+    //    obstacles.push_back(&i);
+    //}
+    //for (const auto &i : m_i.w->getMinions()) {
+    //    obstacles.push_back(&i);
+    //}
+    //for (const auto &i : obstacles) {
+    //    damage_fields.add_field(
+    //        std::make_unique<fields::ConstRingField>(
+    //            Point2D{i->getX(), i->getY()},
+    //            0,
+    //            i->getRadius() + m_i.s->getRadius() + 1,
+    //            1e6
+    //        )
+    //    );
+    //}
 
 }
 

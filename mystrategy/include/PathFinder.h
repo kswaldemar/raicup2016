@@ -16,13 +16,14 @@
  */
 class PathFinder {
 public:
-    static const int WAYPOINT_RADIUS;
+    static constexpr int WAYPOINT_RADIUS = 200;
     //Pathfind grid step
-    static constexpr int GRID_SIZE = 20;
+    static constexpr int GRID_SIZE = 5;
     //Hardcoded
     static constexpr int WORLD_SIZE = 4000;
     static constexpr int CELL_COUNT = (WORLD_SIZE + GRID_SIZE - 1)/ GRID_SIZE;
-    static constexpr int SEARCH_RADIUS = (600 / GRID_SIZE);
+    //Max cell number to visit before manual halt (if more think there is no way)
+    static constexpr int ASTAR_MAX_VISIT = 7000;
 
 
     struct CellCoord {
@@ -59,7 +60,7 @@ public:
     /**
      * Find best way to destination with radius
      */
-    std::list<geom::Point2D> find_way(const geom::Point2D &to, double radius, double max_danger);
+    std::list<geom::Point2D> find_way(const geom::Point2D &to, double radius);
 
     bool check_no_collision(const geom::Point2D &pt, double radius) const;
 

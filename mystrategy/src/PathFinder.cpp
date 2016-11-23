@@ -12,8 +12,6 @@
 #include <cassert>
 #include <queue>
 
-const int PathFinder::WAYPOINT_RADIUS = 200;
-
 using geom::Point2D;
 
 PathFinder::PathFinder(const InfoPack &info) {
@@ -22,26 +20,26 @@ PathFinder::PathFinder(const InfoPack &info) {
     const double map_size = m_i->g->getMapSize();
 
     static const std::vector<Point2D> middle_wp = {
-        {600,            map_size - 600},
-        {1000,           map_size - 1000},
-        {1400,           map_size - 1400},
-        {1800,           map_size - 1800},
-        {2200,           map_size - 2200},
-        {2600,           map_size - 2600},
-        {3000,           map_size - 3000},
-        {3300,           map_size - 3300},
-        {3600,           map_size - 3600},
+        {600,  map_size - 600},
+        {1000, map_size - 1000},
+        {1400, map_size - 1400},
+        {1800, map_size - 1800},
+        {2200, map_size - 2200},
+        {2600, map_size - 2600},
+        {3000, map_size - 3000},
+        {3300, map_size - 3300},
+        {3600, map_size - 3600},
     };
 
     static const std::vector<Point2D> top_wp = {
-        {200.0, map_size - 600.0},
-        {200.0, map_size - 1000.0},
-        {200.0, map_size - 1400.0},
-        {200.0, map_size - 1800.0},
-        {200.0, map_size - 2200.0},
-        {200.0, map_size - 2600.0},
-        {200.0, map_size - 3000.0},
-        {500, 500.0},
+        {200.0,  map_size - 600.0},
+        {200.0,  map_size - 1000.0},
+        {200.0,  map_size - 1400.0},
+        {200.0,  map_size - 1800.0},
+        {200.0,  map_size - 2200.0},
+        {200.0,  map_size - 2600.0},
+        {200.0,  map_size - 3000.0},
+        {500,    500.0},
         {600.0,  200.0},
         {1000.0, 200.0},
         {1400.0, 200.0},
@@ -52,13 +50,13 @@ PathFinder::PathFinder(const InfoPack &info) {
     };
 
     static const std::vector<Point2D> bottom_wp = {
-        {600.0, map_size - 200.0},
-        {1000.0, map_size - 200.0},
-        {1400.0, map_size - 200.0},
-        {1800.0, map_size - 200.0},
-        {2200.0, map_size - 200.0},
-        {2600.0, map_size - 200.0},
-        {3000.0, map_size - 200.0},
+        {600.0,            map_size - 200.0},
+        {1000.0,           map_size - 200.0},
+        {1400.0,           map_size - 200.0},
+        {1800.0,           map_size - 200.0},
+        {2200.0,           map_size - 200.0},
+        {2600.0,           map_size - 200.0},
+        {3000.0,           map_size - 200.0},
         {map_size - 500,   map_size - 500.0},
         {map_size - 200.0, 3000.0},
         {map_size - 200.0, 2600.0},
@@ -162,13 +160,19 @@ void PathFinder::move_along(const geom::Vec2D &dir, model::Move &move, bool hold
 }
 
 bool PathFinder::check_no_collision(const Point2D &pt, double radius) const {
-    const bool wall =    pt.x <= radius || pt.x >= m_i->g->getMapSize() - radius
+    const bool wall = pt.x <= radius || pt.x >= m_i->g->getMapSize() - radius
                       || pt.y <= radius || pt.y >= m_i->g->getMapSize() - radius;
     if (wall) {
         return false;
     }
+    double sqrradius;
+    geom::Vec2D dist;
     for (const auto &obs : m_obstacles) {
-        if (obs->getDistanceTo(pt.x, pt.y) <= radius + obs->getRadius()) {
+        sqrradius = radius + obs->getRadius();
+        sqrradius = sqrradius * sqrradius;
+        dist.x = obs->getX() - pt.x;
+        dist.y = obs->getY() - pt.y;
+        if (dist.sqr() <= sqrradius) {
             VISUAL(fillCircle(pt.x, pt.y, 3, 0xff9933));
             return false;
         }
@@ -178,7 +182,7 @@ bool PathFinder::check_no_collision(const Point2D &pt, double radius) const {
 
 }
 
-std::list<Point2D> PathFinder::find_way(const geom::Point2D &to, double radius, double max_danger) {
+std::list<geom::Point2D> PathFinder::find_way(const geom::Point2D &to, double radius) {
     const double ex_r = m_i->s->getRadius();
 
     //Clear map
@@ -202,10 +206,12 @@ std::list<Point2D> PathFinder::find_way(const geom::Point2D &to, double radius, 
     struct CCWithCost {
         CCWithCost(const CellCoord &pt_, double cost_)
             : pt(pt_),
-              cost(cost_) { }
+              cost(cost_) {
+        }
 
         CellCoord pt;
         double cost;
+
         bool operator>(const CCWithCost &other) const {
             return cost > other.cost;
         }
@@ -222,11 +228,25 @@ std::list<Point2D> PathFinder::find_way(const geom::Point2D &to, double radius, 
     const auto sqrradius = radius * radius;
     const Cell *found = nullptr;
     bool first = true;
+    CellCoord nearest = initial;
+    int min_manh = 100000000;
+    const CellCoord cell_target = world_to_cell(to);
     while (!open.empty()) {
         CellCoord next = open.top().pt;
         //LOG("Looking cell (%d, %d) with cost %lf\n", next.x, next.y, open.top().cost);
         open.pop();
         ++visited_cells;
+
+        //Remember nearest cell, to at least move if cannot find path
+        const int manh = std::abs(cell_target.x - next.x) + std::abs(cell_target.y - next.y);
+        if (min_manh > manh) {
+            min_manh = manh;
+            nearest = next;
+        }
+
+        if (visited_cells > ASTAR_MAX_VISIT) {
+            break;
+        }
 
         Point2D wnext = cell_to_world(next);
         if (closed[next.x][next.y] || !is_correct_cell(next, initial) || (!first && !check_no_collision(wnext, ex_r))) {
@@ -244,10 +264,17 @@ std::list<Point2D> PathFinder::find_way(const geom::Point2D &to, double radius, 
         closed[next.x][next.y] = true;
         //For each neighbor
         static const std::initializer_list<CellCoord> shifts = {
-            {0, -1}, {1, -1}, {1, 0}, {1, 1}, {0, 1}, {-1, 1}, {-1, 0}, {-1, -1}
+            {0,  -1},
+            {1,  -1},
+            {1,  0},
+            {1,  1},
+            {0,  1},
+            {-1, 1},
+            {-1, 0},
+            {-1, -1}
         };
         CellCoord neigh;
-        for (const auto & shift: shifts) {
+        for (const auto &shift: shifts) {
             neigh = next + shift;
             if (!closed[neigh.x][neigh.y]) {
                 //Update vertex
@@ -261,14 +288,19 @@ std::list<Point2D> PathFinder::find_way(const geom::Point2D &to, double radius, 
     }
 
     std::list<Point2D> ret;
+
+    const Cell *next = nullptr;
     if (found) {
         ret.push_front(cell_to_world(found->me));
-        const Cell *next = found->parent;
-        while (next) {
-            ret.push_front(cell_to_world(next->me));
-            //VISUAL(line(next.me.x * GRID_SIZE, next.y * GRID_SIZE, prev.x * GRID_SIZE, prev.y * GRID_SIZE, 0x0000ff));
-            next = next->parent;
-        }
+        next = found->parent;
+    } else {
+        ret.push_front(cell_to_world(nearest));
+        next = &m_map[nearest.x][nearest.y];
+    }
+
+    while (next) {
+        ret.push_front(cell_to_world(next->me));
+        next = next->parent;
     }
 
     LOG("Way to point (%3.1lf, %3.1lf) %s. Vertexes visited %d\n",
@@ -282,8 +314,7 @@ std::list<Point2D> PathFinder::find_way(const geom::Point2D &to, double radius, 
 
 bool PathFinder::is_correct_cell(const PathFinder::CellCoord &tocheck, const PathFinder::CellCoord &initial) {
     const bool inbound = tocheck.x >= 0 && tocheck.x < CELL_COUNT && tocheck.y >= 0 && tocheck.y < CELL_COUNT;
-    geom::Vec2D dist(tocheck.x - initial.x, tocheck.y - initial.y);
-    return inbound && dist.sqr() <= (SEARCH_RADIUS * SEARCH_RADIUS);
+    return inbound;
 }
 
 PathFinder::CellCoord PathFinder::world_to_cell(const Point2D &wpt) {
