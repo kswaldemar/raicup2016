@@ -33,8 +33,6 @@ public:
         }
     };
     struct Cell {
-        double danger;
-        double dist;
         //To build path, after searching
         enum DIR {
             U = 1,
@@ -42,12 +40,9 @@ public:
             D = 4,
             L = 8,
         };
-        CellCoord parent_shift;
         CellCoord me;
-
-        bool operator>(const Cell &other) const {
-            return dist + danger * config::DANGER_PATHFIND_COEF < other.dist + other.danger * config::DANGER_PATHFIND_COEF;
-        }
+        const Cell *parent;
+        double cost;
     };
 
     PathFinder(const InfoPack &info);
@@ -75,7 +70,6 @@ public:
 private:
 
     bool is_correct_cell(const CellCoord &tocheck, const CellCoord &initial);
-    bool update_if_better(Cell &from, Cell &to);
 
     const InfoPack *m_i;
     const std::vector<geom::Point2D> *m_waypoints = nullptr;
@@ -83,4 +77,5 @@ private:
     std::array<std::array<Cell, CELL_COUNT>, CELL_COUNT> m_map;
     const fields::FieldMap *m_danger_map;
     std::vector<const model::CircularUnit *> m_obstacles;
+    bool update_cost(const CellCoord &pt_from, const CellCoord &pt_to);
 };

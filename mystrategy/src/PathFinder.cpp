@@ -184,72 +184,99 @@ std::list<Point2D> PathFinder::find_way(const geom::Point2D &to, double radius, 
     //Clear map
     for (int i = 0; i < m_map.size(); ++i) {
         for (int j = 0; j < m_map[i].size(); ++j) {
-            m_map[i][j] = {1e9, 1e6, {0, 0}, {i, j}};
+            m_map[i][j] = {{i, j}, nullptr, 1e9};
         };
     }
+    //Clear closed cells
+    static std::array<std::array<bool, CELL_COUNT>, CELL_COUNT> closed;
+    for (auto &column : closed) {
+        column.fill(false);
+    }
 
-    std::queue<CellCoord> way;
-    CellCoord start = world_to_cell({m_i->s->getX(), m_i->s->getY()});
-    //auto wpt = cell_to_world(start);
-    //VISUAL(fillCircle(wpt.x, wpt.y, 7, 0xe6005c));
-    m_map[start.x][start.y].dist = 0;
-    way.push(start);
-    const Cell *best = nullptr;
+    //Heuristic function for A-star
+    const auto astar_h = [](const Point2D &cur, const Point2D &target) {
+        return (target - cur).len();
+        //return 0;
+    };
+
+    struct CCWithCost {
+        CCWithCost(const CellCoord &pt_, double cost_)
+            : pt(pt_),
+              cost(cost_) { }
+
+        CellCoord pt;
+        double cost;
+        bool operator>(const CCWithCost &other) const {
+            return cost > other.cost;
+        }
+    };
+
+    std::priority_queue<CCWithCost, std::vector<CCWithCost>, std::greater<CCWithCost>> open;
+    CellCoord initial;
+    initial = world_to_cell({m_i->s->getX(), m_i->s->getY()});
+    m_map[initial.x][initial.y].cost = 0;
+
+    open.emplace(initial, m_map[initial.x][initial.y].cost + astar_h(cell_to_world(initial), to));
+
+    int visited_cells = 0;
+    const auto sqrradius = radius * radius;
+    const Cell *found = nullptr;
     bool first = true;
-    while (!way.empty()) {
-        CellCoord next = way.front();
-        way.pop();
-        if (!is_correct_cell(next, start)) {
+    while (!open.empty()) {
+        CellCoord next = open.top().pt;
+        //LOG("Looking cell (%d, %d) with cost %lf\n", next.x, next.y, open.top().cost);
+        open.pop();
+        ++visited_cells;
+
+        Point2D wnext = cell_to_world(next);
+        if (closed[next.x][next.y] || !is_correct_cell(next, initial) || (!first && !check_no_collision(wnext, ex_r))) {
             continue;
         }
+        first = false;
 
-        Cell *cell = &m_map[next.x][next.y];
-
-        if (first || check_no_collision(Point2D(next.x * GRID_SIZE, next.y * GRID_SIZE), ex_r)) {
-            first = false;
-            const double dist_to_target = geom::Vec2D{to.x - next.x * GRID_SIZE, to.y - next.y * GRID_SIZE}.len();
-            if (dist_to_target <= radius && (best == nullptr || *cell > *best)) {
-                //Found new best
-                best = cell;
-            }
-            static const std::initializer_list<CellCoord> shifts = {
-                {0, -1},
-                {1, -1},
-                {1, 0},
-                {1, 1},
-                {0, 1},
-                {-1, 1},
-                {-1, 0},
-                {-1, -1},
-            };
-            for (const auto & shift: shifts) {
-                CellCoord cand_coord{next.x + shift.x, next.y + shift.y};
-                if (is_correct_cell(cand_coord, start)) {
-                    Cell *candidate = &m_map[cand_coord.x][cand_coord.y];
-                    if (update_if_better(*cell, *candidate)) {
-                        way.push({next.x + shift.x, next.y + shift.y});
-                    }
+        //Check for goal
+        const geom::Vec2D dist = to - wnext;
+        if (dist.sqr() <= sqrradius) {
+            found = &m_map[next.x][next.y];
+            break;
+        }
+        //Don't need to visit it anymore
+        closed[next.x][next.y] = true;
+        //For each neighbor
+        static const std::initializer_list<CellCoord> shifts = {
+            {0, -1}, {1, -1}, {1, 0}, {1, 1}, {0, 1}, {-1, 1}, {-1, 0}, {-1, -1}
+        };
+        CellCoord neigh;
+        for (const auto & shift: shifts) {
+            neigh = next + shift;
+            if (!closed[neigh.x][neigh.y]) {
+                //Update vertex
+                if (update_cost(next, neigh)) {
+                    double updated_cost = m_map[neigh.x][neigh.y].cost;
+                    double h = astar_h(cell_to_world(neigh), to);
+                    open.emplace(neigh, updated_cost + h);
                 }
             }
         }
     }
 
     std::list<Point2D> ret;
-    if (best) {
-        ret.push_front(cell_to_world(best->me));
-        CellCoord prev = best->me;
-        CellCoord next;
-        while (true) {
-            const Cell *pcell = &m_map[prev.x][prev.y];
-            next = pcell->me + pcell->parent_shift;
-            if (next.x == start.x && next.y == start.y) {
-                break;
-            }
-            ret.push_front(cell_to_world(next));
-            VISUAL(line(next.x * GRID_SIZE, next.y * GRID_SIZE, prev.x * GRID_SIZE, prev.y * GRID_SIZE, 0x0000ff));
-            prev = next;
+    if (found) {
+        ret.push_front(cell_to_world(found->me));
+        const Cell *next = found->parent;
+        while (next) {
+            ret.push_front(cell_to_world(next->me));
+            //VISUAL(line(next.me.x * GRID_SIZE, next.y * GRID_SIZE, prev.x * GRID_SIZE, prev.y * GRID_SIZE, 0x0000ff));
+            next = next->parent;
         }
     }
+
+    LOG("Way to point (%3.1lf, %3.1lf) %s. Vertexes visited %d\n",
+        to.x,
+        to.y,
+        found ? "found" : "not found",
+        visited_cells);
+
     return ret;
 }
 
@@ -259,35 +286,28 @@ bool PathFinder::is_correct_cell(const PathFinder::CellCoord &tocheck, const Pat
     return inbound && dist.sqr() <= (SEARCH_RADIUS * SEARCH_RADIUS);
 }
 
-bool PathFinder::update_if_better(PathFinder::Cell &from, PathFinder::Cell &to) {
-    static constexpr double diag_cost = 1.4142135623730951 * GRID_SIZE;
-    int manh = std::abs(to.me.x - from.me.x) + std::abs(to.me.y - from.me.y);
-    double dist;
-    if (manh > 1) {
-        assert(manh == 2);
-        dist = diag_cost;
-    } else {
-        assert(manh == 1);
-        dist = manh * GRID_SIZE;
-    }
-    PathFinder::Cell candidate = from;
-    candidate.dist += dist;
-    //Sum dangers
-    candidate.danger += m_danger_map->get_value(cell_to_world(from.me));
-    if (candidate > to) {
-        to.dist = candidate.dist;
-        to.danger = candidate.danger;
-        to.parent_shift.x = from.me.x - to.me.x;
-        to.parent_shift.y = from.me.y - to.me.y;
-        return true;
-    }
-    return false;
-}
-
 PathFinder::CellCoord PathFinder::world_to_cell(const Point2D &wpt) {
     return {static_cast<int>(round(wpt.x / GRID_SIZE)), static_cast<int>(round(wpt.y / GRID_SIZE))};
 }
 
 geom::Point2D PathFinder::cell_to_world(const PathFinder::CellCoord &cpt) {
     return Point2D(cpt.x * GRID_SIZE, cpt.y * GRID_SIZE);
+}
+
+bool PathFinder::update_cost(const PathFinder::CellCoord &pt_from, const PathFinder::CellCoord &pt_to) {
+    const double D2 = sqrt(2) * GRID_SIZE;
+    const double D = GRID_SIZE;
+    int dx = std::abs(pt_from.x - pt_to.x);
+    int dy = std::abs(pt_from.y - pt_to.y);
+    double mv_cost = D * (dx + dy) + (D2 - 2 * D) * std::min(dx, dy);
+
+    const Cell &cfrom = m_map[pt_from.x][pt_from.y];
+    Cell &cto = m_map[pt_to.x][pt_to.y];
+
+    if (cfrom.cost + mv_cost < cto.cost) {
+        cto.parent = &cfrom;
+        cto.cost = cfrom.cost + mv_cost;
+        return true;
+    }
+    return false;
 }
