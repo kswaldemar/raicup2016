@@ -47,6 +47,7 @@ PathFinder::PathFinder(const InfoPack &info) {
         {2200.0, 200.0},
         {2600.0, 200.0},
         {3000.0, 200.0},
+        {3600.0, 400.0}
     };
 
     static const std::vector<Point2D> bottom_wp = {
@@ -65,6 +66,7 @@ PathFinder::PathFinder(const InfoPack &info) {
         {map_size - 200.0, 1400.0},
         {map_size - 200.0, 1000.0},
         {map_size - 200.0, 600.0},
+        {3600.0, 400.0}
     };
 
     switch (m_i->s->getId()) {

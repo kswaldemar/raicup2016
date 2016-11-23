@@ -29,6 +29,17 @@ protected:
 };
 
 
+class LinearField : public IField {
+public:
+    LinearField(const geom::Point2D &center, double r1, double r2, double force);
+
+    double apply_force(double x, double y) const override;
+protected:
+    double m_r1;
+    double m_r2;
+    double m_force;
+};
+
 /**
  * Поле влияющие в диапазоне r1 <= x <= r2 с силой, изменяющейся линейно от расстояния
  */

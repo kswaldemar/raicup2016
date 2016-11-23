@@ -194,47 +194,53 @@ Eviscerator::DestroyDesc Eviscerator::destroy(model::Move &move) {
     assert(m_en_building || m_en_minion || m_en_wz);
 
     const model::LivingUnit *target;
+    double min_range;
     if (m_en_minion) {
         target = m_en_minion;
+        min_range = target->getRadius() + m_i->g->getMinionVisionRange();
     } else if (m_en_wz) {
         target = m_en_wz;
+        min_range = m_i->s->getCastRange() + target->getRadius() + m_i->g->getMagicMissileRadius();
     } else {
         target = m_en_building;
+        min_range = m_i->s->getCastRange() + target->getRadius() + m_i->g->getMagicMissileRadius();
     }
 
     VISUAL(line(m_i->s->getX(), m_i->s->getY(), target->getX(), target->getY(), 0x0000FF));
 
-    double min_range = m_i->s->getCastRange() + target->getRadius() + m_i->g->getMagicMissileRadius();
-    if (target->getLife() < 50) {
+    if (target == m_en_wz && target->getLife() < 50) {
         min_range -= (50 - target->getLife()) * 2;
     }
-    m_attract_field = std::make_unique<fields::ConstRingField>(
-        geom::Point2D{target->getX(), target->getY()},
-        min_range,
-        config::ENEMY_DETECT_RANGE,
-        config::CHOOSEN_ENEMY_ATTRACT
-    );
+
+    //m_attract_field = std::make_unique<fields::ConstRingField>(
+    //    geom::Point2D{target->getX(), target->getY()},
+    //    min_range,
+    //    config::ENEMY_DETECT_RANGE,
+    //    config::CHOOSEN_ENEMY_ATTRACT
+    //);
 
     VISUAL(circle(target->getX(), target->getY(), min_range, 0x004400));
     VISUAL(circle(target->getX(), target->getY(), config::ENEMY_DETECT_RANGE, 0x008800));
 
-    double distance = m_i->s->getDistanceTo(*target) - target->getRadius() - m_i->g->getMagicMissileRadius();
-    if (distance <= m_i->s->getCastRange()) {
+    double distance = m_i->s->getDistanceTo(*target) - target->getRadius();
+    double my_attack_range = m_i->s->getCastRange() + m_i->g->getMagicMissileRadius();
+    if (distance <= my_attack_range) {
         //Target near
         double angle = m_i->s->getAngleTo(*target);
-        const double very_small = 1 * (pi / 180.0);
-        if (std::abs(angle) > very_small) {
-            move.setTurn(angle);
-        }
+        //const double very_small = 1 * (pi / 180.0);
+        //if (std::abs(angle) > very_small) {
+        move.setTurn(angle);
+        //}
         if (std::abs(angle) < m_i->g->getStaffSector() / 2.0) {
             //Attack
-            if (distance <= m_i->g->getStaffRange()) {
+            const auto &cooldowns = m_i->s->getRemainingCooldownTicksByAction();
+            if (distance <= m_i->g->getStaffRange() && (cooldowns[model::ACTION_STAFF] == 0)) {
                 move.setAction(model::ACTION_STAFF);
             } else {
                 move.setAction(model::ACTION_MAGIC_MISSILE);
             }
             move.setCastAngle(angle);
-            move.setMinCastDistance(distance);
+            move.setMinCastDistance(distance - m_i->g->getMagicMissileRadius());
         }
     }
     return {target, min_range};

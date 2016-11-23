@@ -50,4 +50,17 @@ double ExpRingField::apply_force(double x, double y) const {
     return 0;
 }
 
+LinearField::LinearField(const geom::Point2D &center, double r1, double r2, double force)
+: IField(center), m_r1(r1), m_r2(r2), m_force(force) {
+
+}
+
+double LinearField::apply_force(double x, double y) const {
+    geom::Vec2D v(m_center.x - x, m_center.y - y);
+    double dist = v.len();
+    if (dist >= m_r1 && dist <= m_r2) {
+        return m_force - (m_force / m_r2) * dist;
+    }
+    return 0;
+}
 }

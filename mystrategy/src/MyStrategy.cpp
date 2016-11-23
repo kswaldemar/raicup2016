@@ -16,8 +16,6 @@ const double EPS = 0.00003;
 InfoPack g_info;
 
 
-
-
 void MyStrategy::move(const Wizard &self, const World &world, const Game &game, Move &move) {
     //Initialize common used variables, on each tick start
     initialize_info_pack(self, world, game);
@@ -39,9 +37,9 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     update_shadow_towers(m_enemy_towers, world, self.getFaction());
 
     //Calculate danger map
-    if (world.getTickIndex() % 5 == 0) {
-        update_danger_map();
-    }
+    //if (world.getTickIndex() % 5 == 0) {
+    update_danger_map();
+    //}
 
     /*
      * Per tick initialization
@@ -72,6 +70,8 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         //Danger is ok to attack
         //TODO: Check many enemies and attack if not too dangerous
 
+        m_pf->get_next_waypoint();
+
         double att_range = 0;
         const CircularUnit *enemy;
         const bool have_target = m_ev->choose_enemy();
@@ -99,6 +99,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         }
     }
 
+
     if (danger_level <= config::SCOUT_THRESH && current_action == BH_COUNT) {
         //Move by waypoints
         prev_action = current_action;
@@ -125,8 +126,14 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         prev_action = current_action;
         current_action = BH_MINIMIZE_DANGER;
 
-        m_pf->get_previous_waypoint(); //Update waypoints
-        //VISUAL(circle(wp_prev.x, wp_prev.y, 100, 0x000077));
+
+        auto wp_prev = m_pf->get_previous_waypoint();
+        m_danger_map.add_field(
+            std::make_unique<fields::LinearField>(
+                wp_prev, 0, 500, -20
+            )
+        );
+
         //Shoot to enemy, while retreat
         const bool have_target = m_ev->choose_enemy();
         if (have_target) {
@@ -134,27 +141,27 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         }
 
         Point2D from{self.getX(), self.getY()};
-        dir = damage_avoid_vector(from);
-        //if (m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled()) {
-        //
-        //    Point2D from{self.getX(), self.getY()};
-        //    for (int i = 0; i < 100; ++i) {
-        //        dir = damage_avoid_vector(from);
-        //        if (dir.len() < EPS) {
-        //            //Local minimum
-        //            break;
-        //        }
-        //        from += dir;
-        //    }
-        //
-        //    m_bhs[BH_MINIMIZE_DANGER].update_target(from, PathFinder::GRID_SIZE * 2);
-        //    m_bhs[BH_MINIMIZE_DANGER].load_path(
-        //        m_pf->find_way(from, PathFinder::GRID_SIZE * 2, 10),
-        //        from,
-        //        PathFinder::GRID_SIZE * 2
-        //    );
-        //}
-        //dir = m_bhs[BH_MINIMIZE_DANGER].get_next_direction(self);
+
+        static Point2D myLastPos = from;
+        Point2D diff = myLastPos - from;
+        if (m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled() && diff.sqr() <= EPS) {
+            LOG("Oh shit, cannot move\n");
+            //Possibly stuck in place
+            auto way = m_pf->find_way(wp_prev, PathFinder::WAYPOINT_RADIUS - PathFinder::GRID_SIZE);
+            m_bhs[BH_MINIMIZE_DANGER].update_target(wp_prev, PathFinder::WAYPOINT_RADIUS);
+            m_bhs[BH_MINIMIZE_DANGER].load_path(
+                std::move(way),
+                wp_prev,
+                PathFinder::WAYPOINT_RADIUS
+            );
+        }
+        myLastPos = from;
+
+        if (!m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled()) {
+            dir = m_bhs[BH_MINIMIZE_DANGER].get_next_direction(self);
+        } else {
+            dir = damage_avoid_vector(from);
+        }
         m_pf->move_along(dir, move, have_target);
     }
 
@@ -178,14 +185,11 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     char c = 'N';
     assert(current_action != BH_COUNT);
     switch (current_action) {
-        case BH_MINIMIZE_DANGER:
-            c = 'M';
+        case BH_MINIMIZE_DANGER:c = 'M';
             break;
-        case BH_ATTACK:
-            c = 'A';
+        case BH_ATTACK:c = 'A';
             break;
-        case BH_SCOUT:
-            c = 'R';
+        case BH_SCOUT:c = 'R';
             break;
     }
     sprintf(buf, "%c %3.1lf%%", c, m_danger_map.get_value(self.getX(), self.getY()));
@@ -212,6 +216,7 @@ void MyStrategy::initialize_info_pack(const model::Wizard &self, const model::Wo
 bool MyStrategy::initialize_strategy(const model::Wizard &self, const model::World &world, const model::Game &game) {
     m_pf = make_unique<PathFinder>(m_i);
     m_ev = make_unique<Eviscerator>(m_i);
+    m_bhs[BH_MINIMIZE_DANGER].PATH_SPOIL_TIME = 100;
 
     //Fill enemy towers list, we know what they is mirrored
     m_enemy_towers.clear();
@@ -291,7 +296,6 @@ geom::Vec2D MyStrategy::damage_avoid_vector(const Point2D &from) {
         best.x += len * cos(angle);
         best.y += len * sin(angle);
     }
-
 
 
     best = normalize(best);
@@ -511,6 +515,9 @@ void MyStrategy::visualise_danger_map(const fields::FieldMap &danger, const geom
             double x_a = center.x + x;
             double y_a = center.y + y;
             double force = danger.get_value(x_a, y_a);
+            if (force < 0) {
+                force = 0;
+            }
             force = std::min(force, config::DAMAGE_MAX_FEAR);
             int color = static_cast<uint8_t>((255.0 / config::DAMAGE_MAX_FEAR) * force);
             color = 255 - color;
