@@ -185,7 +185,7 @@ bool PathFinder::check_no_collision(const Point2D &pt, double radius) const {
 }
 
 std::list<geom::Point2D> PathFinder::find_way(const geom::Point2D &to, double radius) {
-    const double ex_r = m_i->s->getRadius();
+    const double ex_r = m_i->s->getRadius() + 0.1;
 
     //Clear map
     for (int i = 0; i < m_map.size(); ++i) {
