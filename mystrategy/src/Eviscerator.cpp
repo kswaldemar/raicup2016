@@ -167,24 +167,24 @@ bool Eviscerator::choose_enemy() {
                 if (unit.getFaction() == model::FACTION_NEUTRAL) {
                     cost = 100;
                 } else {
-                    cost = 300;
+                    cost = 500;
                 }
                 break;
             case EnemyDesc::Type::MINION_FETISH:
                 if (unit.getFaction() == model::FACTION_NEUTRAL) {
                     cost = 200;
                 } else {
-                    cost = 600;
+                    cost = 800;
                 }
                 break;
             case EnemyDesc::Type::WIZARD:
-                cost = 1200;
+                cost = 1800;
                 break;
             case EnemyDesc::Type::TOWER:
                 if (unit.getLife() < 50) {
-                    cost = 550;
+                    cost = 800;
                 } else if (unit.getLife() < 25) {
-                    cost = 1000;
+                    cost = 1500;
                 }
                 break;
         }

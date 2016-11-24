@@ -37,9 +37,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     update_shadow_towers(m_enemy_towers, world, self.getFaction());
 
     //Calculate danger map
-    //if (world.getTickIndex() % 5 == 0) {
     update_danger_map();
-    //}
 
     /*
      * Per tick initialization
@@ -58,6 +56,13 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     VISUAL(endPre());
 
     VISUAL(beginPost());
+
+    //for (const auto &i : m_enemy_towers) {
+    //    char buf[20];
+    //    sprintf(buf, "%d", i.rem_cooldown);
+    //    VISUAL(text(i.x, i.y + 50, buf, 0x009900));
+    //}
+
 
 
     Behaviour current_action = BH_COUNT;
@@ -146,7 +151,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
 
         Point2D from{self.getX(), self.getY()};
         Point2D diff = my_last_pos - from;
-        if (m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled() && diff.sqr() <= EPS
+        if (m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled() && diff.sqr() <= 1
             && !m_pf->check_no_collision(from, self.getRadius() + 0.1)) {
 
             LOG("Oh shit, cannot move; last pos (%3.1lf, %3.1lf); now in (%3.1lf, %3.1lf) \n", my_last_pos.x, my_last_pos.y, from.x, from.y);
@@ -160,7 +165,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             );
         }
 
-        if (world.getTickIndex() - my_last_tick > 2) {
+        if (world.getTickIndex() - my_last_tick > 4) {
             my_last_tick = world.getTickIndex();
             my_last_pos = from;
         }
@@ -465,13 +470,13 @@ void MyStrategy::update_danger_map() {
         bool under_attack = Eviscerator::tower_can_attack_me(tower);
         double cost = config::DAMAGE_MAX_FEAR;
         if (under_attack) {
-            cost *= 2;
+            cost *= 10;
         }
         damage_fields.add_field(
             std::make_unique<fields::ExpRingField>(
                 Point2D{tower.x, tower.y},
                 0,
-                tower.attack_range,
+                tower.attack_range + 5,
                 false,
                 fields::ExpConfig::from_two_points(config::DAMAGE_ZONE_CURVATURE, cost, dead_zone_r)
             )
