@@ -22,6 +22,24 @@
 //
 //};
 
+struct EnemyDesc {
+    enum class Type {
+        MINION_ORC,
+        MINION_FETISH,
+        WIZARD,
+        TOWER
+    };
+
+    EnemyDesc(const model::LivingUnit *unit, Type type)
+        : unit(unit),
+          type(type) {
+    }
+
+    const model::LivingUnit *unit;
+    Type type;
+};
+
+
 class Eviscerator {
 public:
 
@@ -35,7 +53,7 @@ public:
     /*
      * Should be called at each tick start
      */
-    void update_info_pack(const InfoPack &info);
+    void update_info(const InfoPack &info);
 
     int get_myself_death_time(const model::Wizard &me, const model::Minion &enemy);
     int get_myself_death_time(const model::Wizard &me, const model::Building &enemy);
@@ -55,12 +73,14 @@ public:
 
     geom::Vec2D apply_enemy_attract_field(const model::Wizard &me);
 
+    static bool tower_can_attack_me(const TowerDesc &tower);
+
+    const std::vector<EnemyDesc> &get_enemies() const;
 private:
     const InfoPack *m_i;
     //Set up in choose enemy
-    const model::Wizard *m_en_wz;
-    const model::Building *m_en_building;
-    const model::Minion *m_en_minion;
+    const EnemyDesc *m_target;
     //Attraction to choosen enemy
     std::unique_ptr<fields::IField> m_attract_field;
+    std::vector<EnemyDesc> m_enemies;
 };

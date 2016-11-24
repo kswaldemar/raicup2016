@@ -185,7 +185,7 @@ bool PathFinder::check_no_collision(const Point2D &pt, double radius) const {
 }
 
 std::list<geom::Point2D> PathFinder::find_way(const geom::Point2D &to, double radius) {
-    const double ex_r = m_i->s->getRadius() + 0.1;
+    const double ex_r = m_i->s->getRadius() + 1;
 
     //Clear map
     for (int i = 0; i < m_map.size(); ++i) {
@@ -200,9 +200,9 @@ std::list<geom::Point2D> PathFinder::find_way(const geom::Point2D &to, double ra
     }
 
     //Heuristic function for A-star
-    const auto astar_h = [](const Point2D &cur, const Point2D &target) {
-        return (target - cur).len();
-        //return 0;
+    const auto &dmap = m_danger_map;
+    const auto astar_h = [&dmap](const Point2D &cur, const Point2D &target) {
+        return (target - cur).len() + dmap->get_value(cur);
     };
 
     struct CCWithCost {

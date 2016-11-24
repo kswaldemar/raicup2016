@@ -45,7 +45,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
      * Per tick initialization
      */
     m_pf->update_info(m_i, m_danger_map);
-    m_ev->update_info_pack(m_i);
+    m_ev->update_info(m_i);
     for (int i = 0; i < BH_COUNT; ++i) {
         m_bhs[i].update_clock(world.getTickIndex());
     }
@@ -458,13 +458,18 @@ void MyStrategy::update_danger_map() {
                                attack_range,
                                0};
         double dead_zone_r = Eviscerator::calc_dead_zone(me, enemy);
+        bool under_attack = Eviscerator::tower_can_attack_me(tower);
+        double cost = config::DAMAGE_MAX_FEAR;
+        if (under_attack) {
+            cost *= 2;
+        }
         damage_fields.add_field(
             std::make_unique<fields::ExpRingField>(
                 Point2D{tower.x, tower.y},
                 0,
                 tower.attack_range,
                 false,
-                fields::ExpConfig::from_two_points(config::DAMAGE_ZONE_CURVATURE, config::DAMAGE_MAX_FEAR, dead_zone_r)
+                fields::ExpConfig::from_two_points(config::DAMAGE_ZONE_CURVATURE, cost, dead_zone_r)
             )
         );
 
@@ -473,36 +478,6 @@ void MyStrategy::update_danger_map() {
         sprintf(buf, "%3d", tower.rem_cooldown);
         VISUAL(text(tower.x, tower.y + 30, buf, 0x004400));
     }
-
-
-    //ONLY FOR TEST. DO IT IN RIGHT WAY
-    //std::vector<const model::CircularUnit *> obstacles;
-    //for (const auto &i : m_i.w->getTrees()) {
-    //    obstacles.push_back(&i);
-    //}
-    //for (const auto &i : m_i.w->getBuildings()) {
-    //    obstacles.push_back(&i);
-    //}
-    //for (const auto &i : m_i.w->getWizards()) {
-    //    if (i.isMe()) {
-    //        continue;
-    //    }
-    //    obstacles.push_back(&i);
-    //}
-    //for (const auto &i : m_i.w->getMinions()) {
-    //    obstacles.push_back(&i);
-    //}
-    //for (const auto &i : obstacles) {
-    //    damage_fields.add_field(
-    //        std::make_unique<fields::ConstRingField>(
-    //            Point2D{i->getX(), i->getY()},
-    //            0,
-    //            i->getRadius() + m_i.s->getRadius() + 1,
-    //            1e6
-    //        )
-    //    );
-    //}
-
 }
 
 void MyStrategy::visualise_danger_map(const fields::FieldMap &danger, const geom::Point2D &center) {

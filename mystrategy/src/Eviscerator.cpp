@@ -8,6 +8,7 @@
 #include "Eviscerator.h"
 #include "FieldsDescription.h"
 #include "VisualDebug.h"
+#include "Logger.h"
 
 #include <cassert>
 
@@ -15,13 +16,45 @@ Eviscerator::Eviscerator(const InfoPack &info)
     : m_i(&info) {
 }
 
-void Eviscerator::update_info_pack(const InfoPack &info) {
+void Eviscerator::update_info(const InfoPack &info) {
     m_i = &info;
 
-    m_en_building = nullptr;
-    m_en_minion = nullptr;
-    m_en_wz = nullptr;
     m_attract_field = nullptr;
+    m_target = nullptr;
+
+    //Create enemies list
+    m_enemies.clear();
+    const auto my_faction = m_i->s->getFaction();
+    for (const auto &i : m_i->w->getWizards()) {
+        if (i.getFaction() != my_faction) {
+            m_enemies.emplace_back(&i, EnemyDesc::Type::WIZARD);
+        }
+    }
+    for (const auto &i : m_i->w->getMinions()) {
+        bool aggresive_neutral = false;
+        if (i.getFaction() == model::FACTION_NEUTRAL) {
+            //Check for aggression
+            aggresive_neutral = std::abs(i.getSpeedX()) + std::abs(i.getSpeedY()) > 0
+                                || i.getRemainingActionCooldownTicks() > 0
+                                || i.getLife() < i.getMaxLife();
+            if (aggresive_neutral) {
+                LOG("Neutral aggresive! %lf, %d, %d\n", std::abs(i.getSpeedX()) + std::abs(i.getSpeedY()),
+                    i.getRemainingActionCooldownTicks(), i.getLife());
+            }
+        }
+        if (aggresive_neutral || (i.getFaction() != my_faction && i.getFaction() != model::FACTION_NEUTRAL)) {
+            if (i.getType() == model::MINION_FETISH_BLOWDART) {
+                m_enemies.emplace_back(&i, EnemyDesc::Type::MINION_FETISH);
+            } else {
+                m_enemies.emplace_back(&i, EnemyDesc::Type::MINION_ORC);
+            }
+        }
+    }
+    for (const auto &i : m_i->w->getBuildings()) {
+        if (i.getFaction() != my_faction) {
+            m_enemies.emplace_back(&i, EnemyDesc::Type::TOWER);
+        }
+    }
 }
 
 int Eviscerator::get_myself_death_time(const model::Wizard &me, const model::Minion &enemy) {
@@ -125,129 +158,125 @@ double Eviscerator::calc_dead_zone(const RunawayUnit &me, const AttackUnit &enem
 }
 
 bool Eviscerator::choose_enemy() {
-    const auto &buildings = m_i->w->getBuildings();
-    const auto &wizards = m_i->w->getWizards();
-    const auto &creeps = m_i->w->getMinions();
 
-    double dist;
-    double min_dist = 1e9;
-    bool first_time = true;
-
-    for (const auto &i : wizards) {
-        if (i.getFaction() == model::FACTION_NEUTRAL || i.getFaction() == m_i->s->getFaction()) {
-            continue;
+    const auto estimate = [](const EnemyDesc &enemy, const double dist) -> int {
+        int cost = 0;
+        const auto &unit = *enemy.unit;
+        switch (enemy.type) {
+            case EnemyDesc::Type::MINION_ORC:
+                if (unit.getFaction() == model::FACTION_NEUTRAL) {
+                    cost = 100;
+                } else {
+                    cost = 300;
+                }
+                break;
+            case EnemyDesc::Type::MINION_FETISH:
+                if (unit.getFaction() == model::FACTION_NEUTRAL) {
+                    cost = 200;
+                } else {
+                    cost = 600;
+                }
+                break;
+            case EnemyDesc::Type::WIZARD:
+                cost = 1200;
+                break;
+            case EnemyDesc::Type::TOWER:
+                if (unit.getLife() < 50) {
+                    cost = 550;
+                } else if (unit.getLife() < 25) {
+                    cost = 1000;
+                }
+                break;
         }
-        dist = m_i->s->getDistanceTo(i);
-        if (first_time || dist < min_dist) {
-            first_time = false;
-            min_dist = dist;
-            m_en_building = nullptr;
-            m_en_minion = nullptr;
-            m_en_wz = &i;
-        }
-    }
 
-    if (m_en_wz && m_i->s->getDistanceTo(*m_en_wz) <= config::ENEMY_DETECT_RANGE) {
-        return true;
-    }
-
-
-    for (const auto &i : buildings) {
-        if (i.getFaction() == model::FACTION_NEUTRAL || i.getFaction() == m_i->s->getFaction()) {
-            continue;
+        if (dist > config::ENEMY_DETECT_RANGE) {
+            return 0;
         }
-        dist = m_i->s->getDistanceTo(i);
-        if (first_time || dist < min_dist) {
-            first_time = false;
-            min_dist = dist;
-            m_en_building = &i;
-            m_en_minion = nullptr;
-            m_en_wz = nullptr;
-        }
-    }
+        return cost
+               + 600 - static_cast<int>(dist)
+               + static_cast<int>(180.0 * (1.0 - unit.getLife() / unit.getMaxLife()));
+    };
 
-    for (const auto &i : creeps) {
-        if (i.getFaction() == model::FACTION_NEUTRAL || i.getFaction() == m_i->s->getFaction()) {
-            continue;
-        }
-        dist = m_i->s->getDistanceTo(i);
-        if (first_time || dist < min_dist) {
-            first_time = false;
-            min_dist = dist;
-            m_en_building = nullptr;
-            m_en_minion = &i;
-            m_en_wz = nullptr;
+    int max_est = 0;
+    const EnemyDesc *best = nullptr;
+    for (const auto &i : m_enemies) {
+        int est = estimate(i, m_i->s->getDistanceTo(*i.unit));
+        if (!best || est > max_est) {
+            best = &i;
+            max_est = est;
         }
     }
-
-
-    if (min_dist > config::ENEMY_DETECT_RANGE) {
-        m_en_building = nullptr;
-        m_en_minion = nullptr;
-        m_en_wz = nullptr;
-        return false;
+    if (best) {
+        //LOG("Best enemy estimation = %d; (%lf, %lf)\n",
+        //    max_est,
+        //    best->unit->getX(), best->unit->getY());
     }
-    return true;
+    if (max_est > 0) {
+        m_target = best;
+    }
+    return max_est > 0;
 }
 
 Eviscerator::DestroyDesc Eviscerator::destroy(model::Move &move) {
-    assert(m_en_building || m_en_minion || m_en_wz);
+    assert(m_target);
 
-    const model::LivingUnit *target;
+    const model::LivingUnit &unit = *m_target->unit;
     double min_range;
-    if (m_en_minion) {
-        target = m_en_minion;
-        min_range = target->getRadius() + m_i->g->getMinionVisionRange();
-    } else if (m_en_wz) {
-        target = m_en_wz;
-        min_range = m_i->s->getCastRange() + target->getRadius() + m_i->g->getMagicMissileRadius();
+    if (m_target->type == EnemyDesc::Type::MINION_FETISH || m_target->type == EnemyDesc::Type::MINION_ORC) {
+        min_range = unit.getRadius() + m_i->g->getMinionVisionRange();
     } else {
-        target = m_en_building;
-        min_range = m_i->s->getCastRange() + target->getRadius() + m_i->g->getMagicMissileRadius();
+        min_range = m_i->s->getCastRange() + unit.getRadius() + m_i->g->getMagicMissileRadius();
     }
 
-    VISUAL(line(m_i->s->getX(), m_i->s->getY(), target->getX(), target->getY(), 0x0000FF));
+    VISUAL(line(m_i->s->getX(), m_i->s->getY(), unit.getX(), unit.getY(), 0x0000FF));
 
-    if (target == m_en_wz && target->getLife() < 50) {
-        min_range -= (50 - target->getLife()) * 2;
+    if (m_target->type == EnemyDesc::Type::WIZARD && unit.getLife() < 50) {
+        min_range -= (50 - unit.getLife()) * 2;
     }
 
-    //m_attract_field = std::make_unique<fields::ConstRingField>(
-    //    geom::Point2D{target->getX(), target->getY()},
-    //    min_range,
-    //    config::ENEMY_DETECT_RANGE,
-    //    config::CHOOSEN_ENEMY_ATTRACT
-    //);
+    VISUAL(circle(unit.getX(), unit.getY(), min_range, 0x004400));
+    VISUAL(circle(unit.getX(), unit.getY(), config::ENEMY_DETECT_RANGE, 0x008800));
 
-    VISUAL(circle(target->getX(), target->getY(), min_range, 0x004400));
-    VISUAL(circle(target->getX(), target->getY(), config::ENEMY_DETECT_RANGE, 0x008800));
-
-    double distance = m_i->s->getDistanceTo(*target) - target->getRadius();
+    double distance = m_i->s->getDistanceTo(unit) - unit.getRadius();
     double my_attack_range = m_i->s->getCastRange() + m_i->g->getMagicMissileRadius();
     if (distance <= my_attack_range) {
         //Target near
-        double angle = m_i->s->getAngleTo(*target);
-        //const double very_small = 1 * (pi / 180.0);
-        //if (std::abs(angle) > very_small) {
+        double angle = m_i->s->getAngleTo(unit);
         move.setTurn(angle);
-        //}
         if (std::abs(angle) < m_i->g->getStaffSector() / 2.0) {
             //Attack
             const auto &cooldowns = m_i->s->getRemainingCooldownTicksByAction();
             if (distance <= m_i->g->getStaffRange() && (cooldowns[model::ACTION_STAFF] == 0)) {
                 move.setAction(model::ACTION_STAFF);
-            } else {
+            } else if (cooldowns[model::ACTION_MAGIC_MISSILE] == 0) {
                 move.setAction(model::ACTION_MAGIC_MISSILE);
+            } else if (cooldowns[model::ACTION_STAFF] == 0) {
+                //Check enemy in staff range
+                for (const auto &i : m_enemies) {
+                    double d = m_i->s->getDistanceTo(*i.unit) + i.unit->getRadius();
+                    double a = m_i->s->getAngleTo(*i.unit);
+                    if (d <= m_i->g->getStaffRange() && std::abs(a) < m_i->g->getStaffSector() / 2.0) {
+                        move.setAction(model::ACTION_STAFF);
+                    }
+                }
             }
             move.setCastAngle(angle);
             move.setMinCastDistance(distance - m_i->g->getMagicMissileRadius());
         }
     }
-    return {target, min_range};
+    return {m_target->unit, min_range};
 }
 
 geom::Vec2D Eviscerator::apply_enemy_attract_field(const model::Wizard &me) {
     assert(m_attract_field);
     //return m_attract_field->apply_force(me.getX(), me.getY());
     return {0, 0};
+}
+
+bool Eviscerator::tower_can_attack_me(const TowerDesc &tower) {
+    return true;
+}
+
+const std::vector<EnemyDesc> &Eviscerator::get_enemies() const {
+    return m_enemies;
 }
