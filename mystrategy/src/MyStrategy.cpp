@@ -122,6 +122,10 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         }
     }
 
+    static Point2D my_last_pos{self.getX(), self.getY()};
+    static int my_last_tick = world.getTickIndex();
+
+    //LOG("my_last_pos = (%3.1lf, %3.1lf)\n", my_last_pos.x, my_last_pos.y);
     if (current_action == BH_COUNT || current_action == BH_MINIMIZE_DANGER) {
         prev_action = current_action;
         current_action = BH_MINIMIZE_DANGER;
@@ -141,11 +145,11 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         }
 
         Point2D from{self.getX(), self.getY()};
+        Point2D diff = my_last_pos - from;
+        if (m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled() && diff.sqr() <= EPS
+            && !m_pf->check_no_collision(from, self.getRadius() + 0.1)) {
 
-        static Point2D myLastPos = from;
-        Point2D diff = myLastPos - from;
-        if (m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled() && diff.sqr() <= EPS) {
-            LOG("Oh shit, cannot move\n");
+            LOG("Oh shit, cannot move; last pos (%3.1lf, %3.1lf); now in (%3.1lf, %3.1lf) \n", my_last_pos.x, my_last_pos.y, from.x, from.y);
             //Possibly stuck in place
             auto way = m_pf->find_way(wp_prev, PathFinder::WAYPOINT_RADIUS - PathFinder::GRID_SIZE);
             m_bhs[BH_MINIMIZE_DANGER].update_target(wp_prev, PathFinder::WAYPOINT_RADIUS);
@@ -155,7 +159,11 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
                 PathFinder::WAYPOINT_RADIUS
             );
         }
-        myLastPos = from;
+
+        if (world.getTickIndex() - my_last_tick > 2) {
+            my_last_tick = world.getTickIndex();
+            my_last_pos = from;
+        }
 
         if (!m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled()) {
             dir = m_bhs[BH_MINIMIZE_DANGER].get_next_direction(self);
@@ -164,19 +172,6 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         }
         m_pf->move_along(dir, move, have_target);
     }
-
-    //LOG(
-    //    "[Danger %3.1lf%%] Dir (%3.1lf; %3.1lf); "
-    //        "Obstacle vector: (%3.1lf; %3.1lf); "
-    //        "Waypoint vector: (%3.1lf; %3.1lf); "
-    //        "Enemy attraction vector (%3.1lf; %3.1lf); "
-    //        "Damage avoid vector (%3.1lf; %3.1lf);\n",
-    //    damage_avoidance.len(),
-    //    dir.x, dir.y,
-    //    obs_avoid.x, obs_avoid.y,
-    //    waypoints.x, waypoints.y,
-    //    enemy_attraction.x, enemy_attraction.y,
-    //    damage_avoidance.x, damage_avoidance.y);
 
 #ifdef RUNNING_LOCAL
     dir *= 3;
@@ -257,7 +252,7 @@ geom::Vec2D MyStrategy::damage_avoid_vector(const Point2D &from) {
     double len2 = back.len();
 
 
-    const int steps = static_cast<int>(180.0 / ANGLE_STEP);
+    const int steps = static_cast<int>(360.0 / ANGLE_STEP);
     for (int i = 0; i <= steps; ++i) {
         double angle = deg_to_rad(i * ANGLE_STEP);
 
@@ -273,14 +268,15 @@ geom::Vec2D MyStrategy::damage_avoid_vector(const Point2D &from) {
         }
     }
 
-    const double cur_danger = m_danger_map.get_value(m_i.s->getX(), m_i.s->getY());
+    const double cur_danger = m_danger_map.get_value(from);
     int min_idx = all_steps;
-    forces[all_steps] = 1e9;
+    forces[all_steps] = cur_danger;
     for (int i = 0; i < forces.size(); ++i) {
         if (forces[i] < forces[min_idx]) {
             min_idx = i;
         }
     }
+
 
     if (min_idx == all_steps) {
         //Local minimum found, so best to stay here
@@ -288,7 +284,7 @@ geom::Vec2D MyStrategy::damage_avoid_vector(const Point2D &from) {
     }
 
     double angle = deg_to_rad(min_idx * ANGLE_STEP);
-    Vec2D best;
+    Vec2D best{0, 0};
     if (angle > pi) {
         best.x += len2 * cos(angle);
         best.y += len2 * sin(angle);
@@ -433,7 +429,15 @@ void MyStrategy::update_danger_map() {
                                attack_range,
                                m_i.g->getMinionSpeed()};
         double dead_zone_r = Eviscerator::calc_dead_zone(me, enemy);
-        add_unit_damage_fields({minion.getX(), minion.getY()}, attack_range, dead_zone_r);
+        damage_fields.add_field(
+            std::make_unique<fields::ExpRingField>(
+                Point2D{minion.getX(), minion.getY()},
+                0,
+                minion.getVisionRange() + 30,
+                false,
+                fields::ExpConfig::from_two_points(config::DAMAGE_ZONE_CURVATURE, config::DAMAGE_MAX_FEAR, dead_zone_r)
+            )
+        );
     }
     for (const auto &wizard : wizards) {
         if (wizard.getFaction() == FACTION_NEUTRAL || wizard.getFaction() == m_i.s->getFaction()) {
@@ -490,13 +494,21 @@ void MyStrategy::visualise_danger_map(const fields::FieldMap &danger, const geom
             double x_a = center.x + x;
             double y_a = center.y + y;
             double force = danger.get_value(x_a, y_a);
-            if (force < 0) {
-                force = 0;
+            if (force > config::DAMAGE_MAX_FEAR) {
+                force = config::DAMAGE_MAX_FEAR;
             }
-            force = std::min(force, config::DAMAGE_MAX_FEAR);
-            int color = static_cast<uint8_t>((255.0 / config::DAMAGE_MAX_FEAR) * force);
+            if (force < -config::DAMAGE_MAX_FEAR) {
+                force = -config::DAMAGE_MAX_FEAR;
+            }
+
+            int color = static_cast<uint8_t>((255.0 / config::DAMAGE_MAX_FEAR) * std::abs(force));
+            //if (force < 0) {
+            //    color = (color << 16) | 0xff00 |color;
+            //} else {
+            //    color = 0xff0000 | (color << 8) | color;
+            //}
             color = 255 - color;
-            color = (color << 16) | (color << 8) | color;
+                color = (color << 16) | (color << 8) | color;
             VISUAL(fillRect(x_a - half - 1, y_a - half - 1, x_a + half, y_a + half, color));
         }
     }
