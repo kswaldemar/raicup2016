@@ -68,6 +68,8 @@ public:
 
     static geom::Point2D cell_to_world(const CellCoord &cpt);
 
+    bool bonuses_is_under_control() const;
+
 private:
 
     bool is_correct_cell(const CellCoord &tocheck, const CellCoord &initial);

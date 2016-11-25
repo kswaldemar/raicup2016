@@ -157,7 +157,7 @@ double Eviscerator::calc_dead_zone(const RunawayUnit &me, const AttackUnit &enem
     return enemy.range - (killing_time * me.speed);
 }
 
-bool Eviscerator::choose_enemy() {
+int Eviscerator::choose_enemy() {
 
     const auto estimate = [](const EnemyDesc &enemy, const double dist) -> int {
         int cost = 0;
@@ -206,15 +206,15 @@ bool Eviscerator::choose_enemy() {
             max_est = est;
         }
     }
-    if (best) {
-        //LOG("Best enemy estimation = %d; (%lf, %lf)\n",
-        //    max_est,
-        //    best->unit->getX(), best->unit->getY());
-    }
+    //if (best) {
+    //    LOG("Best enemy estimation = %d; (%lf, %lf)\n",
+    //        max_est,
+    //        best->unit->getX(), best->unit->getY());
+    //}
     if (max_est > 0) {
         m_target = best;
     }
-    return max_est > 0;
+    return max_est;
 }
 
 Eviscerator::DestroyDesc Eviscerator::destroy(model::Move &move) {

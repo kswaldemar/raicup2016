@@ -67,7 +67,7 @@ public:
      * Enemy stored in internal variable
      * @return true, if killing candidate found
      */
-    bool choose_enemy();
+    int choose_enemy();
 
     DestroyDesc destroy(model::Move &move);
 

@@ -19,8 +19,8 @@ const double ENEMY_DETECT_RANGE = 600;
 const double CHOOSEN_ENEMY_ATTRACT = 70;
 
 const double ATTACK_THRESH = 55;
-
 const double SCOUT_THRESH = 50;
+const double BONUS_EARN_THRESH = 40;
 
 const double DAMAGE_MAX_FEAR = 100;
 /*
@@ -38,5 +38,7 @@ const int DMG_SIMULATION_TICKS = 360;
 
 
 const double DANGER_PATHFIND_COEF = 1;
+
+
 
 }

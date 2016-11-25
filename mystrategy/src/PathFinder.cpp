@@ -66,7 +66,7 @@ PathFinder::PathFinder(const InfoPack &info) {
         {map_size - 200.0, 1400.0},
         {map_size - 200.0, 1000.0},
         {map_size - 200.0, 600.0},
-        {3600.0, 400.0}
+        {3600.0,           400.0}
     };
 
     switch (m_i->s->getId()) {
@@ -343,4 +343,25 @@ bool PathFinder::update_cost(const PathFinder::CellCoord &pt_from, const PathFin
         return true;
     }
     return false;
+}
+
+bool PathFinder::bonuses_is_under_control() const {
+    long wp_idx = m_last_wp - m_waypoints->cbegin();
+    switch (m_i->s->getId()) {
+        case 1:
+        case 2:
+        case 6:
+        case 7:
+            return wp_idx >= 5;
+        case 3:
+        case 8:
+            return wp_idx >= 2;
+        case 4:
+        case 5:
+        case 9:
+        case 10:
+            return wp_idx >= 5;
+            break;
+        default:break;
+    }
 }

@@ -39,6 +39,24 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     //Calculate danger map
     update_danger_map();
 
+    //Update bonuses info
+    update_bonuses();
+
+    //Check for stucking in place
+    static Point2D my_last_pos{self.getX(), self.getY()};
+    static int my_last_tick = world.getTickIndex();
+    if (world.getTickIndex() - my_last_tick > 3) {
+        my_last_tick = world.getTickIndex();
+        my_last_pos = {self.getX(), self.getY()};
+    }
+    const bool is_stuck = std::abs(my_last_pos.x - self.getY()) + std::abs(my_last_pos.y - self.getY()) <= 1
+                          && !m_pf->check_no_collision({self.getX(), self.getY()}, self.getRadius() + 0.5);
+    if (is_stuck) {
+        LOG("Tick %d: Oh shit, cannot move; last pos (%3.1lf, %3.1lf);\n",
+            world.getTickIndex(),
+            my_last_pos.x,
+            my_last_pos.y);
+    }
     /*
      * Per tick initialization
      */
@@ -71,6 +89,8 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     Vec2D dir;
     double danger_level = m_danger_map.get_value(self.getX(), self.getY());
 
+
+    int best_enemy = 0;
     if (danger_level <= config::ATTACK_THRESH && current_action == BH_COUNT) {
         //Danger is ok to attack
         //TODO: Check many enemies and attack if not too dangerous
@@ -79,9 +99,9 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
 
         double att_range = 0;
         const CircularUnit *enemy;
-        const bool have_target = m_ev->choose_enemy();
+        best_enemy = m_ev->choose_enemy();
         Vec2D enemy_attraction{0, 0};
-        if (have_target) {
+        if (best_enemy > 0) {
             //Enemy choosen
             prev_action = current_action;
             current_action = BH_ATTACK;
@@ -104,6 +124,60 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         }
     }
 
+    if (danger_level <= config::BONUS_EARN_THRESH && (best_enemy <= 1400) && m_pf->bonuses_is_under_control()) {
+        //Here check for bonuses time and go to one of them
+        if (m_bhs[BH_EARN_BONUS].is_path_spoiled()) {
+            geom::Point2D me = {self.getX(), self.getY()};
+            geom::Vec2D shift_top = m_bns_top.pt - me;
+            geom::Vec2D shift_bottom = m_bns_bottom.pt - me;
+            const double my_speed = 4;
+            const double max_dist = 1600;
+            double td = shift_top.len();
+
+            if (td <= max_dist && (td / my_speed) >= m_bns_top.time) {
+                m_bhs[BH_EARN_BONUS].update_target(m_bns_top.pt, game.getBonusRadius() + 5);
+                auto way = m_pf->find_way(m_bns_top.pt, game.getBonusRadius() + 5);
+                m_bhs[BH_EARN_BONUS].load_path(
+                    std::move(way),
+                    m_bns_top.pt,
+                    game.getBonusRadius() + 5
+                );
+
+                prev_action = current_action;
+                current_action = BH_EARN_BONUS;
+            }
+
+            double tb = shift_bottom.len();
+            if (tb <= max_dist && (tb / my_speed) >= m_bns_bottom.time) {
+                m_bhs[BH_EARN_BONUS].update_target(m_bns_bottom.pt, game.getBonusRadius() + 5);
+                auto way = m_pf->find_way(m_bns_bottom.pt, game.getBonusRadius() + 5);
+                m_bhs[BH_EARN_BONUS].load_path(
+                    std::move(way),
+                    m_bns_bottom.pt,
+                    game.getBonusRadius() + 5
+                );
+
+                prev_action = current_action;
+                current_action = BH_EARN_BONUS;
+            }
+
+        }
+
+        if (!m_bhs[BH_EARN_BONUS].is_path_spoiled()) {
+
+            prev_action = current_action;
+            current_action = BH_EARN_BONUS;
+
+            //Shoot to enemy, while go to the bonus
+            best_enemy = m_ev->choose_enemy();
+            if (best_enemy > 0) {
+                m_ev->destroy(move);
+            }
+
+            dir = m_bhs[BH_EARN_BONUS].get_next_direction(self);
+            m_pf->move_along(dir, move, best_enemy > 0);
+        }
+    }
 
     if (danger_level <= config::SCOUT_THRESH && current_action == BH_COUNT) {
         //Move by waypoints
@@ -125,12 +199,13 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         if (dir.len() > EPS) {
             m_pf->move_along(dir, move, false);
         }
+
+        if (is_stuck) {
+            //Better than nothing
+            move.setAction(ACTION_STAFF);
+        }
     }
 
-    static Point2D my_last_pos{self.getX(), self.getY()};
-    static int my_last_tick = world.getTickIndex();
-
-    //LOG("my_last_pos = (%3.1lf, %3.1lf)\n", my_last_pos.x, my_last_pos.y);
     if (current_action == BH_COUNT || current_action == BH_MINIMIZE_DANGER) {
         prev_action = current_action;
         current_action = BH_MINIMIZE_DANGER;
@@ -144,17 +219,13 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         );
 
         //Shoot to enemy, while retreat
-        const bool have_target = m_ev->choose_enemy();
-        if (have_target) {
+        best_enemy = m_ev->choose_enemy();
+        if (best_enemy > 0) {
             m_ev->destroy(move);
         }
 
         Point2D from{self.getX(), self.getY()};
-        Point2D diff = my_last_pos - from;
-        if (m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled() && diff.sqr() <= 1
-            && !m_pf->check_no_collision(from, self.getRadius() + 0.1)) {
-
-            LOG("Oh shit, cannot move; last pos (%3.1lf, %3.1lf); now in (%3.1lf, %3.1lf) \n", my_last_pos.x, my_last_pos.y, from.x, from.y);
+        if (m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled() && is_stuck) {
             //Possibly stuck in place
             auto way = m_pf->find_way(wp_prev, PathFinder::WAYPOINT_RADIUS - PathFinder::GRID_SIZE);
             m_bhs[BH_MINIMIZE_DANGER].update_target(wp_prev, PathFinder::WAYPOINT_RADIUS);
@@ -165,17 +236,12 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             );
         }
 
-        if (world.getTickIndex() - my_last_tick > 4) {
-            my_last_tick = world.getTickIndex();
-            my_last_pos = from;
-        }
-
         if (!m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled()) {
             dir = m_bhs[BH_MINIMIZE_DANGER].get_next_direction(self);
         } else {
             dir = damage_avoid_vector(from);
         }
-        m_pf->move_along(dir, move, have_target);
+        m_pf->move_along(dir, move, best_enemy > 0);
     }
 
 #ifdef RUNNING_LOCAL
@@ -191,11 +257,20 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             break;
         case BH_SCOUT:c = 'R';
             break;
+        case BH_EARN_BONUS: c = 'B';
+            break;
     }
     sprintf(buf, "%c %3.1lf%%", c, m_danger_map.get_value(self.getX(), self.getY()));
     VISUAL(text(self.getX() - 70, self.getY() - 60, buf, 0xFF0000));
 #endif
 
+    //Hack to take bonus if near
+    for (const auto &b : world.getBonuses()) {
+        if (b.getDistanceTo(self) + b.getRadius() <= 5) {
+            m_pf->move_along({b.getX() - self.getX(), b.getY() - self.getY()}, move, true);
+            m_bhs[BH_EARN_BONUS].update_target({0,0}, 1);
+        }
+    }
 
     VISUAL(endPost());
 }
@@ -217,6 +292,11 @@ bool MyStrategy::initialize_strategy(const model::Wizard &self, const model::Wor
     m_pf = make_unique<PathFinder>(m_i);
     m_ev = make_unique<Eviscerator>(m_i);
     m_bhs[BH_MINIMIZE_DANGER].PATH_SPOIL_TIME = 100;
+
+    m_bns_top.pt = {1200, 1200};
+    m_bns_top.time = 2501;
+    m_bns_bottom.pt = {2800, 2800};
+    m_bns_bottom.time = m_bns_top.time;
 
     //Fill enemy towers list, we know what they is mirrored
     m_enemy_towers.clear();
@@ -518,4 +598,75 @@ void MyStrategy::visualise_danger_map(const fields::FieldMap &danger, const geom
         }
     }
 #endif
+}
+
+void MyStrategy::update_bonuses() {
+
+    auto my_faction = m_i.s->getFaction();
+    struct VisionRange {
+        VisionRange(double x_, double y_, double r_)
+            : x(x_),
+              y(y_),
+              r(r_) {
+        }
+
+        double x, y, r;
+    };
+    std::vector<VisionRange> team_vision;
+    for (const auto &creep : m_i.w->getMinions()) {
+        if (creep.getFaction() != my_faction) {
+            continue;
+        }
+        team_vision.emplace_back(creep.getX(), creep.getY(), creep.getVisionRange());
+    }
+    for (const auto &wizard : m_i.w->getWizards()) {
+        if (wizard.getFaction() != my_faction) {
+            continue;
+        }
+        team_vision.emplace_back(wizard.getX(), wizard.getY(), wizard.getVisionRange());
+    }
+
+    //Check if bonuses in vision range and exists
+    bool bottom_up = false;
+    bool top_up = false;
+    for (const auto &bns : m_i.w->getBonuses()) {
+        if (bns.getDistanceTo(m_bns_top.pt.x, m_bns_top.pt.y) <= m_i.g->getBonusRadius()) {
+            m_bns_top.time = 0; //Already appeared
+            top_up = true;
+        }
+        if (bns.getDistanceTo(m_bns_bottom.pt.x, m_bns_bottom.pt.y) <= m_i.g->getBonusRadius()) {
+            m_bns_bottom.time = 0; //Already appeared
+            bottom_up = true;
+        }
+    }
+
+    geom::Vec2D ally;
+    geom::Vec2D dist;
+    int bonus_interval = m_i.g->getBonusAppearanceIntervalTicks();
+    for (const auto &ally_vis : team_vision) {
+        ally = {ally_vis.x, ally_vis.y};
+        dist = ally - m_bns_top.pt;
+        if (dist.sqr() <= (ally_vis.r * ally_vis.r) && !top_up && m_bns_top.time == 0) {
+            //In vision but not updated, so it was taken
+            int next_tick = ((m_i.w->getTickIndex() + bonus_interval - 1) / bonus_interval) * bonus_interval;
+            m_bns_top.time = next_tick - m_i.w->getTickIndex() + 1;
+            LOG("Top bonus was taken!\n");
+        }
+
+        dist = ally - m_bns_bottom.pt;
+        if (dist.sqr() <= (ally_vis.r * ally_vis.r) && !bottom_up && m_bns_bottom.time == 0) {
+            //In vision but not updated, so it was taken
+            int next_tick = ((m_i.w->getTickIndex() + bonus_interval - 1) / bonus_interval) * bonus_interval;
+            m_bns_bottom.time = next_tick - m_i.w->getTickIndex() + 1;
+            LOG("Bottom bonus was taken! next time = %d\n", m_bns_bottom.time);
+        }
+    }
+
+    //Decrease remaining time
+    if (m_bns_bottom.time > 0) {
+        --m_bns_bottom.time;
+    }
+    if (m_bns_top.time > 0) {
+        --m_bns_top.time;
+    }
 }
