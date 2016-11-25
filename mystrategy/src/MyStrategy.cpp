@@ -44,13 +44,14 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
 
     //Check for stucking in place
     static Point2D my_last_pos{self.getX(), self.getY()};
-    static int my_last_tick = world.getTickIndex();
-    if (world.getTickIndex() - my_last_tick > 3) {
-        my_last_tick = world.getTickIndex();
-        my_last_pos = {self.getX(), self.getY()};
-    }
-    const bool is_stuck = std::abs(my_last_pos.x - self.getY()) + std::abs(my_last_pos.y - self.getY()) <= 1
-                          && !m_pf->check_no_collision({self.getX(), self.getY()}, self.getRadius() + 0.5);
+    //static int my_last_tick = world.getTickIndex();
+    //if (world.getTickIndex() - my_last_tick > 3) {
+    //    my_last_tick = world.getTickIndex();
+    //    my_last_pos = {self.getX(), self.getY()};
+    //}
+    //const bool is_stuck = std::abs(my_last_pos.x - self.getY()) + std::abs(my_last_pos.y - self.getY()) <= 1
+    //                      && !m_pf->check_no_collision({self.getX(), self.getY()}, self.getRadius() + 2);
+    const bool is_stuck = std::abs(self.getSpeedX()) + std::abs(self.getSpeedY()) < 2;
     if (is_stuck) {
         LOG("Tick %d: Oh shit, cannot move; last pos (%3.1lf, %3.1lf);\n",
             world.getTickIndex(),
@@ -134,7 +135,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             const double max_dist = 1600;
             double td = shift_top.len();
 
-            if (td <= max_dist && (td / my_speed) >= m_bns_top.time) {
+            if (td <= max_dist && static_cast<int>(td / my_speed) >= m_bns_top.time) {
                 m_bhs[BH_EARN_BONUS].update_target(m_bns_top.pt, game.getBonusRadius() + 5);
                 auto way = m_pf->find_way(m_bns_top.pt, game.getBonusRadius() + 5);
                 m_bhs[BH_EARN_BONUS].load_path(
@@ -148,9 +149,9 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             }
 
             double tb = shift_bottom.len();
-            if (tb <= max_dist && (tb / my_speed) >= m_bns_bottom.time) {
-                m_bhs[BH_EARN_BONUS].update_target(m_bns_bottom.pt, game.getBonusRadius() + 5);
-                auto way = m_pf->find_way(m_bns_bottom.pt, game.getBonusRadius() + 5);
+            if (tb <= max_dist && static_cast<int>(tb / my_speed) >= m_bns_bottom.time) {
+                m_bhs[BH_EARN_BONUS].update_target(m_bns_bottom.pt, game.getBonusRadius() + 4);
+                auto way = m_pf->find_way(m_bns_bottom.pt, game.getBonusRadius() + 4);
                 m_bhs[BH_EARN_BONUS].load_path(
                     std::move(way),
                     m_bns_bottom.pt,
@@ -176,7 +177,13 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
 
             dir = m_bhs[BH_EARN_BONUS].get_next_direction(self);
             m_pf->move_along(dir, move, best_enemy > 0);
+
+            if (is_stuck) {
+                move.setAction(ACTION_STAFF);
+            }
         }
+
+
     }
 
     if (danger_level <= config::SCOUT_THRESH && current_action == BH_COUNT) {
@@ -265,12 +272,12 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
 #endif
 
     //Hack to take bonus if near
-    for (const auto &b : world.getBonuses()) {
-        if (b.getDistanceTo(self) + b.getRadius() <= 5) {
-            m_pf->move_along({b.getX() - self.getX(), b.getY() - self.getY()}, move, true);
-            m_bhs[BH_EARN_BONUS].update_target({0,0}, 1);
-        }
-    }
+    //for (const auto &b : world.getBonuses()) {
+    //    if (b.getDistanceTo(self) + b.getRadius() <= 5) {
+    //        m_pf->move_along({b.getX() - self.getX(), b.getY() - self.getY()}, move, true);
+    //        m_bhs[BH_EARN_BONUS].update_target({0,0}, 1);
+    //    }
+    //}
 
     VISUAL(endPost());
 }

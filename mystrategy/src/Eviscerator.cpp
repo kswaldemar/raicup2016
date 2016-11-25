@@ -226,6 +226,9 @@ Eviscerator::DestroyDesc Eviscerator::destroy(model::Move &move) {
         min_range = unit.getRadius() + m_i->g->getMinionVisionRange();
     } else {
         min_range = m_i->s->getCastRange() + unit.getRadius() + m_i->g->getMagicMissileRadius();
+        if (m_target->type == EnemyDesc::Type::WIZARD) {
+            min_range -= 10;
+        }
     }
 
     VISUAL(line(m_i->s->getX(), m_i->s->getY(), unit.getX(), unit.getY(), 0x0000FF));
@@ -256,6 +259,7 @@ Eviscerator::DestroyDesc Eviscerator::destroy(model::Move &move) {
                     double d = m_i->s->getDistanceTo(*i.unit) + i.unit->getRadius();
                     double a = m_i->s->getAngleTo(*i.unit);
                     if (d <= m_i->g->getStaffRange() && std::abs(a) < m_i->g->getStaffSector() / 2.0) {
+                        LOG("Extra enemy push!\n");
                         move.setAction(model::ACTION_STAFF);
                     }
                 }

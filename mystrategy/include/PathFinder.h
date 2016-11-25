@@ -23,7 +23,7 @@ public:
     static constexpr int WORLD_SIZE = 4000;
     static constexpr int CELL_COUNT = (WORLD_SIZE + GRID_SIZE - 1)/ GRID_SIZE;
     //Max cell number to visit before manual halt (if more think there is no way)
-    static constexpr int ASTAR_MAX_VISIT = 5000;
+    static constexpr int ASTAR_MAX_VISIT = 7000;
 
 
     struct CellCoord {
