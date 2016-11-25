@@ -73,9 +73,11 @@ public:
 
     geom::Vec2D apply_enemy_attract_field(const model::Wizard &me);
 
-    static bool tower_can_attack_me(const TowerDesc &tower);
+    bool tower_maybe_attack_me(const TowerDesc &tower);
 
     const std::vector<EnemyDesc> &get_enemies() const;
+
+    bool can_shoot_to_target() const;
 private:
     const InfoPack *m_i;
     //Set up in choose enemy

@@ -82,6 +82,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     VISUAL(endPre());
 
     VISUAL(beginPost());
+#ifdef RUNNING_LOCAL
     {
         char buf[20];
         sprintf(buf, "%d", m_bns_top.time);
@@ -89,13 +90,15 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         sprintf(buf, "%d", m_bns_bottom.time);
         VISUAL(text(m_bns_bottom.pt.x, m_bns_bottom.pt.y + 50, buf, 0x111199));
     }
+#endif
 
-    //for (const auto &i : m_enemy_towers) {
-    //    char buf[20];
-    //    sprintf(buf, "%d", i.rem_cooldown);
-    //    VISUAL(text(i.x, i.y + 50, buf, 0x009900));
-    //}
-
+#ifdef RUNNING_LOCAL
+    for (const auto &i : m_enemy_towers) {
+        char buf[20];
+        sprintf(buf, "%d", i.rem_cooldown);
+        VISUAL(text(i.x, i.y + 50, buf, 0x00CC00));
+    }
+#endif
     Behaviour current_action = BH_COUNT;
     static Behaviour prev_action = BH_COUNT;
 
@@ -139,11 +142,27 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         if (m_bhs[BH_EARN_BONUS].is_path_spoiled()) {
             geom::Vec2D shift_top = m_bns_top.pt - me;
             geom::Vec2D shift_bottom = m_bns_bottom.pt - me;
-            const double my_speed = 4;
+            double my_speed = game.getWizardForwardSpeed();
+            const auto &statuses = m_i.s->getStatuses();
+            for (const auto &st : statuses) {
+                if (st.getType() == model::STATUS_HASTENED) {
+                    my_speed *= 1.0 + m_i.g->getHastenedMovementBonusFactor();
+                }
+            }
+
             const double max_dist = 1600;
             double td = shift_top.len();
+            double tb = shift_bottom.len();
 
-            if (td <= max_dist && static_cast<int>(td / my_speed) >= m_bns_top.time) {
+            bool want_bottom = tb <= max_dist && static_cast<int>(tb / my_speed) >= m_bns_bottom.time;
+            bool want_top = td <= max_dist && static_cast<int>(td / my_speed) >= m_bns_top.time;
+
+            if (want_bottom && want_top) {
+                want_bottom = tb <= td;
+                want_top = td <= tb;
+            }
+
+            if (want_top) {
                 m_bhs[BH_EARN_BONUS].update_target(m_bns_top.pt, game.getBonusRadius() + 5);
                 auto way = m_pf->find_way(m_bns_top.pt, game.getBonusRadius() + 5);
                 m_bhs[BH_EARN_BONUS].load_path(
@@ -153,10 +172,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
                 );
 
                 will_go = true;
-            }
-
-            double tb = shift_bottom.len();
-            if (tb <= max_dist && static_cast<int>(tb / my_speed) >= m_bns_bottom.time) {
+            } else if (want_bottom) {
                 m_bhs[BH_EARN_BONUS].update_target(m_bns_bottom.pt, game.getBonusRadius() + 4);
                 auto way = m_pf->find_way(m_bns_bottom.pt, game.getBonusRadius() + 4);
                 m_bhs[BH_EARN_BONUS].load_path(
@@ -173,7 +189,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         if (!m_bhs[BH_EARN_BONUS].is_path_spoiled()) {
             will_go = true;
             dir = m_bhs[BH_EARN_BONUS].get_next_direction(self);
-            m_pf->move_along(dir, move, have_target);
+            m_pf->move_along(dir, move, m_ev->can_shoot_to_target());
         }
 
         if (will_go) {
@@ -562,10 +578,10 @@ void MyStrategy::update_danger_map() {
                                attack_range,
                                0};
         double dead_zone_r = Eviscerator::calc_dead_zone(me, enemy);
-        bool under_attack = Eviscerator::tower_can_attack_me(tower);
+        bool under_attack = m_ev->tower_maybe_attack_me(tower);
         double cost = config::DAMAGE_MAX_FEAR;
         if (under_attack) {
-            cost *= 10;
+            cost *= 50;
         }
         damage_fields.add_field(
             std::make_unique<fields::ExpRingField>(

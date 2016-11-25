@@ -277,10 +277,54 @@ geom::Vec2D Eviscerator::apply_enemy_attract_field(const model::Wizard &me) {
     return {0, 0};
 }
 
-bool Eviscerator::tower_can_attack_me(const TowerDesc &tower) {
+bool Eviscerator::tower_maybe_attack_me(const TowerDesc &tower) {
+    std::vector<const model::LivingUnit*> maybe_targets;
+    geom::Vec2D dist;
+    const double att_rad = tower.attack_range * tower.attack_range;
+    for (const auto &minion : m_i->w->getMinions()) {
+        if (minion.getFaction() != m_i->s->getFaction()) {
+            continue;
+        }
+        bool aggresive_neutral = std::abs(minion.getSpeedX()) + std::abs(minion.getSpeedY()) > 0
+                            || minion.getRemainingActionCooldownTicks() > 0
+                            || minion.getLife() < minion.getMaxLife();
+        dist = {tower.x - minion.getX(), tower.y - minion.getY()};
+        if (aggresive_neutral && dist.sqr() <= att_rad) {
+            maybe_targets.emplace_back(&minion);
+        }
+    }
+    for (const auto &wizard : m_i->w->getWizards()) {
+        if (wizard.isMe() || wizard.getFaction() != m_i->s->getFaction()) {
+            continue;
+        }
+        dist = {tower.x - wizard.getX(), tower.y - wizard.getY()};
+        if (dist.sqr() <= att_rad) {
+            maybe_targets.emplace_back(&wizard);
+        }
+    }
+
+    int case1_hp = 1000;
+    int case2_hp = 0;
+    for (const auto &i : maybe_targets) {
+        if (i->getLife() >= tower.damage) {
+            case1_hp = std::min(i->getLife(), case1_hp);
+        } else {
+            case2_hp = std::max(i->getLife(), case2_hp);
+        }
+    }
+
+    if (case1_hp < 1000) {
+        return m_i->s->getLife() == case1_hp;
+    } else if (case2_hp > 0) {
+        return m_i->s->getLife() == case2_hp;
+    }
     return true;
 }
 
 const std::vector<EnemyDesc> &Eviscerator::get_enemies() const {
     return m_enemies;
+}
+
+bool Eviscerator::can_shoot_to_target() const {
+    return m_target && m_i->s->getDistanceTo(*m_target->unit) <= m_i->s->getCastRange() + m_i->g->getMagicMissileRadius();
 }
