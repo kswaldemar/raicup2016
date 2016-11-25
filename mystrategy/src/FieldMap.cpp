@@ -10,7 +10,7 @@ FieldMap::FieldMap(FieldMap::Type sum_rules): m_rules(sum_rules) {
 
 }
 
-void FieldMap::add_field(std::unique_ptr<fields::IVectorField> field) {
+void FieldMap::add_field(std::unique_ptr<fields::IField> field) {
     m_fields.push_back(std::move(field));
 }
 
@@ -19,13 +19,13 @@ double FieldMap::get_value(double x, double y) const {
     for (const auto &fld : m_fields) {
         switch (m_rules) {
             case ADD:
-                force += fld->apply_force(x, y).len();
+                force += fld->apply_force(x, y);
                 break;
             case MAX:
-                force = std::max(force, fld->apply_force(x, y).len());
+                force = std::max(force, fld->apply_force(x, y));
                 break;
             case MIN:
-                force = std::min(force, fld->apply_force(x, y).len());
+                force = std::min(force, fld->apply_force(x, y));
                 break;
         }
     }

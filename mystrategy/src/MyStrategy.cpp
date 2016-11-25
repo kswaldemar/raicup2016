@@ -15,7 +15,10 @@ using namespace geom;
 const double EPS = 0.00003;
 InfoPack g_info;
 
-
+bool eps_equal(double d1, double d2) {
+    const double diff = d1 - d2;
+    return diff < EPS && diff > -EPS;
+}
 
 
 void MyStrategy::move(const Wizard &self, const World &world, const Game &game, Move &move) {
@@ -41,39 +44,72 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     //Calculate danger map
     update_danger_map();
 
+    //Update bonuses info
+    update_bonuses();
+
+    //Check for stucking in place
+    static int hold_time = 0;
+    if (std::abs(self.getSpeedX()) + std::abs(self.getSpeedY()) < 0.1) {
+        ++hold_time;
+    } else {
+        hold_time = 0;
+    }
+    const bool not_moved = hold_time >= 3;
+    if (not_moved) {
+        LOG("Tick %d: Not moved in last tick - speed (%3.1lf, %3.1lf)\n",
+            world.getTickIndex(),
+            self.getSpeedX(),
+            self.getSpeedY());
+    }
+
     /*
      * Per tick initialization
      */
     m_pf->update_info(m_i, m_danger_map);
-    m_ev->update_info_pack(m_i);
+    m_ev->update_info(m_i);
     for (int i = 0; i < BH_COUNT; ++i) {
         m_bhs[i].update_clock(world.getTickIndex());
     }
 
+    const Point2D me{self.getX(), self.getY()};
+
     //Pre actions
     VISUAL(beginPre());
 
-    visualise_danger_map(m_danger_map, {self.getX(), self.getY()});
+    visualise_danger_map(m_danger_map, me);
+
 
     VISUAL(endPre());
 
     VISUAL(beginPost());
+#ifdef RUNNING_LOCAL
+    {
+        char buf[20];
+        sprintf(buf, "%d", m_bns_top.time);
+        VISUAL(text(m_bns_top.pt.x, m_bns_top.pt.y + 50, buf, 0x111199));
+        sprintf(buf, "%d", m_bns_bottom.time);
+        VISUAL(text(m_bns_bottom.pt.x, m_bns_bottom.pt.y + 50, buf, 0x111199));
+    }
+#endif
 
-
+#ifdef RUNNING_LOCAL
+    for (const auto &i : m_enemy_towers) {
+        char buf[20];
+        sprintf(buf, "%d", i.rem_cooldown);
+        VISUAL(text(i.x, i.y + 50, buf, 0x00CC00));
+    }
+#endif
     Behaviour current_action = BH_COUNT;
     static Behaviour prev_action = BH_COUNT;
 
     Vec2D dir;
-    double danger_level = m_danger_map.get_value(self.getX(), self.getY());
+    double danger_level = m_danger_map.get_value(me);
 
+    int best_enemy = m_ev->choose_enemy();
+    const bool have_target = best_enemy > 0;
     if (danger_level <= config::ATTACK_THRESH && current_action == BH_COUNT) {
         //Danger is ok to attack
-        //TODO: Check many enemies and attack if not too dangerous
-
-        double att_range = 0;
-        const CircularUnit *enemy;
-        const bool have_target = m_ev->choose_enemy();
-        Vec2D enemy_attraction{0, 0};
+        m_pf->get_next_waypoint();
         if (have_target) {
             //Enemy choosen
             prev_action = current_action;
@@ -83,7 +119,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
                 m_bhs[BH_ATTACK].update_target(*description.unit);
                 if (m_bhs[BH_ATTACK].is_path_spoiled()) {
                     m_bhs[BH_ATTACK].load_path(
-                        m_pf->find_way({description.unit->getX(), description.unit->getY()}, description.att_range, 0),
+                        m_pf->find_way({description.unit->getX(), description.unit->getY()}, description.att_range),
                         *description.unit
                     );
                 }
@@ -97,6 +133,71 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         }
     }
 
+    static constexpr int NOT_EXPENSIVE_ENEMY = 1400;
+    if (danger_level <= config::BONUS_EARN_THRESH
+        && (best_enemy <= NOT_EXPENSIVE_ENEMY)
+        && m_pf->bonuses_is_under_control()) {
+        //Here check for bonuses time and go to one of them
+        bool will_go = false;
+        if (m_bhs[BH_EARN_BONUS].is_path_spoiled()) {
+            geom::Vec2D shift_top = m_bns_top.pt - me;
+            geom::Vec2D shift_bottom = m_bns_bottom.pt - me;
+            double my_speed = game.getWizardForwardSpeed();
+            const auto &statuses = m_i.s->getStatuses();
+            for (const auto &st : statuses) {
+                if (st.getType() == model::STATUS_HASTENED) {
+                    my_speed *= 1.0 + m_i.g->getHastenedMovementBonusFactor();
+                }
+            }
+
+            const double max_dist = 1600;
+            double td = shift_top.len();
+            double tb = shift_bottom.len();
+
+            bool want_bottom = tb <= max_dist && static_cast<int>(tb / my_speed) >= m_bns_bottom.time;
+            bool want_top = td <= max_dist && static_cast<int>(td / my_speed) >= m_bns_top.time;
+
+            if (want_bottom && want_top) {
+                want_bottom = tb <= td;
+                want_top = td <= tb;
+            }
+
+            if (want_top) {
+                m_bhs[BH_EARN_BONUS].update_target(m_bns_top.pt, game.getBonusRadius() + 5);
+                auto way = m_pf->find_way(m_bns_top.pt, game.getBonusRadius() + 5);
+                m_bhs[BH_EARN_BONUS].load_path(
+                    std::move(way),
+                    m_bns_top.pt,
+                    game.getBonusRadius() + 5
+                );
+
+                will_go = true;
+            } else if (want_bottom) {
+                m_bhs[BH_EARN_BONUS].update_target(m_bns_bottom.pt, game.getBonusRadius() + 4);
+                auto way = m_pf->find_way(m_bns_bottom.pt, game.getBonusRadius() + 4);
+                m_bhs[BH_EARN_BONUS].load_path(
+                    std::move(way),
+                    m_bns_bottom.pt,
+                    game.getBonusRadius() + 5
+                );
+
+                will_go = true;
+            }
+
+        }
+
+        if (!m_bhs[BH_EARN_BONUS].is_path_spoiled()) {
+            will_go = true;
+            dir = m_bhs[BH_EARN_BONUS].get_next_direction(self);
+            m_pf->move_along(dir, move, m_ev->can_shoot_to_target());
+        }
+
+        if (will_go) {
+            prev_action = current_action;
+            current_action = BH_EARN_BONUS;
+        }
+    }
+
     if (danger_level <= config::SCOUT_THRESH && current_action == BH_COUNT) {
         //Move by waypoints
         prev_action = current_action;
@@ -105,16 +206,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         VISUAL(circle(wp_next.x, wp_next.y, PathFinder::WAYPOINT_RADIUS, 0x001111));
         m_bhs[BH_SCOUT].update_target(wp_next, PathFinder::WAYPOINT_RADIUS);
         if (m_bhs[BH_SCOUT].is_path_spoiled()) {
-            auto way = m_pf->find_way(wp_next, PathFinder::WAYPOINT_RADIUS - PathFinder::GRID_SIZE, 10);
-            if (way.empty()) {
-                //Path to waypoint not found, try to move in direction
-                Vec2D wp_dir{wp_next.x - self.getX(), wp_next.y - self.getY()};
-                wp_dir = normalize(wp_dir);
-                wp_dir *= PathFinder::SEARCH_RADIUS * PathFinder::GRID_SIZE - PathFinder::GRID_SIZE;
-                wp_dir.x += self.getX();
-                wp_dir.y += self.getY();
-                way = m_pf->find_way(wp_dir, 150, 10);
-            }
+            auto way = m_pf->find_way(wp_next, PathFinder::WAYPOINT_RADIUS - PathFinder::GRID_SIZE);
             m_bhs[BH_SCOUT].load_path(
                 std::move(way),
                 wp_next,
@@ -132,71 +224,84 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         prev_action = current_action;
         current_action = BH_MINIMIZE_DANGER;
 
-        m_pf->get_previous_waypoint(); //Update waypoints
-        //VISUAL(circle(wp_prev.x, wp_prev.y, 100, 0x000077));
-        //Shoot to enemy, while retreat
-        const bool have_target = m_ev->choose_enemy();
-        if (have_target) {
-            m_ev->destroy(move);
-        }
 
-        if (m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled()) {
+        auto wp_prev = m_pf->get_previous_waypoint();
+        m_danger_map.add_field(
+            std::make_unique<fields::LinearField>(
+                wp_prev, 0, 500, -20
+            )
+        );
 
-            Point2D from{self.getX(), self.getY()};
-            for (int i = 0; i < 100; ++i) {
-                dir = damage_avoid_vector(from);
-                if (dir.len() < EPS) {
-                    //Local minimum
-                    break;
-                }
-                from += dir;
-            }
-
-            m_bhs[BH_MINIMIZE_DANGER].update_target(from, PathFinder::GRID_SIZE * 2);
+        Point2D from{self.getX(), self.getY()};
+        if (m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled() && not_moved) {
+            //Possibly stuck in place
+            auto way = m_pf->find_way(wp_prev, PathFinder::WAYPOINT_RADIUS - PathFinder::GRID_SIZE);
+            m_bhs[BH_MINIMIZE_DANGER].update_target(wp_prev, PathFinder::WAYPOINT_RADIUS);
             m_bhs[BH_MINIMIZE_DANGER].load_path(
-                m_pf->find_way(from, PathFinder::GRID_SIZE * 2, 10),
-                from,
-                PathFinder::GRID_SIZE * 2
+                std::move(way),
+                wp_prev,
+                PathFinder::WAYPOINT_RADIUS
             );
         }
-        dir = m_bhs[BH_MINIMIZE_DANGER].get_next_direction(self);
+
+        if (!m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled()) {
+            dir = m_bhs[BH_MINIMIZE_DANGER].get_next_direction(self);
+        } else {
+            dir = damage_avoid_vector(from);
+        }
         m_pf->move_along(dir, move, have_target);
     }
 
-    //LOG(
-    //    "[Danger %3.1lf%%] Dir (%3.1lf; %3.1lf); "
-    //        "Obstacle vector: (%3.1lf; %3.1lf); "
-    //        "Waypoint vector: (%3.1lf; %3.1lf); "
-    //        "Enemy attraction vector (%3.1lf; %3.1lf); "
-    //        "Damage avoid vector (%3.1lf; %3.1lf);\n",
-    //    damage_avoidance.len(),
-    //    dir.x, dir.y,
-    //    obs_avoid.x, obs_avoid.y,
-    //    waypoints.x, waypoints.y,
-    //    enemy_attraction.x, enemy_attraction.y,
-    //    damage_avoidance.x, damage_avoidance.y);
+    //If we stuck in the tree - destroy it
+    if (not_moved) {
+        double min_dist = 1e9;
+        double min_angle = pi;
+        const model::Tree *target = nullptr;
+        for (const auto &tree : world.getTrees()) {
+            double ang = std::abs(self.getAngleTo(tree));
+            double dist = self.getDistanceTo(tree);
+            if (dist < min_dist || (eps_equal(dist, min_dist) && ang < min_angle)) {
+                min_dist = dist;
+                min_angle = ang;
+                target = &tree;
+            }
+        }
+        if (target && min_dist <= target->getRadius() + game.getStaffRange()) {
+            double ang = self.getAngleTo(*target);
+            if (!have_target && (std::abs(ang) >= game.getStaffSector() / 2.0)) {
+                move.setTurn(ang);
+            }
+            if (std::abs(ang) < game.getStaffSector() / 2.0) {
+                move.setAction(ACTION_STAFF);
+            }
+        }
+    }
+
+    //Try to destroy enemy, while going to another targets
+    if ((current_action == BH_MINIMIZE_DANGER || current_action == BH_EARN_BONUS) && have_target) {
+        m_ev->destroy(move);
+    }
+
 
 #ifdef RUNNING_LOCAL
-    dir *= 3;
-    VISUAL(line(self.getX(), self.getY(), self.getX() + dir.x, self.getY() + dir.y, 0xB325DA));
-    char buf[10];
-    char c = 'N';
-    assert(current_action != BH_COUNT);
-    switch (current_action) {
-        case BH_MINIMIZE_DANGER:
-            c = 'M';
-            break;
-        case BH_ATTACK:
-            c = 'A';
-            break;
-        case BH_SCOUT:
-            c = 'R';
-            break;
-    }
-    sprintf(buf, "%c %3.1lf%%", c, m_danger_map.get_value(self.getX(), self.getY()));
-    VISUAL(text(self.getX() - 70, self.getY() - 60, buf, 0xFF0000));
+        dir *= 3;
+        VISUAL(line(self.getX(), self.getY(), self.getX() + dir.x, self.getY() + dir.y, 0xB325DA));
+        char buf[10];
+        char c = 'N';
+        assert(current_action != BH_COUNT);
+        switch (current_action) {
+            case BH_MINIMIZE_DANGER:c = 'M';
+                break;
+            case BH_ATTACK:c = 'A';
+                break;
+            case BH_SCOUT:c = 'R';
+                break;
+            case BH_EARN_BONUS: c = 'B';
+                break;
+        }
+        sprintf(buf, "%c %3.1lf%%", c, m_danger_map.get_value(self.getX(), self.getY()));
+        VISUAL(text(self.getX() - 70, self.getY() - 60, buf, 0xFF0000));
 #endif
-
 
     VISUAL(endPost());
 }
@@ -217,6 +322,12 @@ void MyStrategy::initialize_info_pack(const model::Wizard &self, const model::Wo
 bool MyStrategy::initialize_strategy(const model::Wizard &self, const model::World &world, const model::Game &game) {
     m_pf = make_unique<PathFinder>(m_i);
     m_ev = make_unique<Eviscerator>(m_i);
+    m_bhs[BH_MINIMIZE_DANGER].PATH_SPOIL_TIME = 100;
+
+    m_bns_top.pt = {1200, 1200};
+    m_bns_top.time = 2501;
+    m_bns_bottom.pt = {2800, 2800};
+    m_bns_bottom.time = m_bns_top.time;
 
     //Fill enemy towers list, we know what they is mirrored
     m_enemy_towers.clear();
@@ -257,7 +368,7 @@ geom::Vec2D MyStrategy::damage_avoid_vector(const Point2D &from) {
     double len2 = back.len();
 
 
-    const int steps = static_cast<int>(180.0 / ANGLE_STEP);
+    const int steps = static_cast<int>(360.0 / ANGLE_STEP);
     for (int i = 0; i <= steps; ++i) {
         double angle = deg_to_rad(i * ANGLE_STEP);
 
@@ -273,14 +384,15 @@ geom::Vec2D MyStrategy::damage_avoid_vector(const Point2D &from) {
         }
     }
 
-    const double cur_danger = m_danger_map.get_value(m_i.s->getX(), m_i.s->getY());
+    const double cur_danger = m_danger_map.get_value(from);
     int min_idx = all_steps;
-    forces[all_steps] = 1e9;
+    forces[all_steps] = cur_danger;
     for (int i = 0; i < forces.size(); ++i) {
         if (forces[i] < forces[min_idx]) {
             min_idx = i;
         }
     }
+
 
     if (min_idx == all_steps) {
         //Local minimum found, so best to stay here
@@ -288,7 +400,7 @@ geom::Vec2D MyStrategy::damage_avoid_vector(const Point2D &from) {
     }
 
     double angle = deg_to_rad(min_idx * ANGLE_STEP);
-    Vec2D best;
+    Vec2D best{0, 0};
     if (angle > pi) {
         best.x += len2 * cos(angle);
         best.y += len2 * sin(angle);
@@ -296,7 +408,6 @@ geom::Vec2D MyStrategy::damage_avoid_vector(const Point2D &from) {
         best.x += len * cos(angle);
         best.y += len * sin(angle);
     }
-
 
 
     best = normalize(best);
@@ -378,7 +489,7 @@ void MyStrategy::update_shadow_towers(std::list<TowerDesc> &towers,
         while (it != towers.cend()) {
             dist.x = it->x - vision.x;
             dist.y = it->y - vision.y;
-            if (dist.len() <= vision.r && !updated[idx]) {
+            if (dist.sqr() <= (vision.r * vision.r) && !updated[idx]) {
                 //We should see it, but it not appeared in world.getBuildings, so it is destroyed
                 LOG("Don't see tower: %3lf <= %3lf, %d\n", dist.len(), vision.r, (int) updated[idx]);
                 it = towers.erase(it);
@@ -434,7 +545,15 @@ void MyStrategy::update_danger_map() {
                                attack_range,
                                m_i.g->getMinionSpeed()};
         double dead_zone_r = Eviscerator::calc_dead_zone(me, enemy);
-        add_unit_damage_fields({minion.getX(), minion.getY()}, attack_range, dead_zone_r);
+        damage_fields.add_field(
+            std::make_unique<fields::ExpRingField>(
+                Point2D{minion.getX(), minion.getY()},
+                0,
+                minion.getVisionRange() + 30,
+                false,
+                fields::ExpConfig::from_two_points(config::DAMAGE_ZONE_CURVATURE, config::DAMAGE_MAX_FEAR, dead_zone_r)
+            )
+        );
     }
     for (const auto &wizard : wizards) {
         if (wizard.getFaction() == FACTION_NEUTRAL || wizard.getFaction() == m_i.s->getFaction()) {
@@ -459,13 +578,18 @@ void MyStrategy::update_danger_map() {
                                attack_range,
                                0};
         double dead_zone_r = Eviscerator::calc_dead_zone(me, enemy);
+        bool under_attack = m_ev->tower_maybe_attack_me(tower);
+        double cost = config::DAMAGE_MAX_FEAR;
+        if (under_attack) {
+            cost *= 50;
+        }
         damage_fields.add_field(
             std::make_unique<fields::ExpRingField>(
                 Point2D{tower.x, tower.y},
                 0,
-                tower.attack_range,
+                tower.attack_range + 5,
                 false,
-                fields::ExpConfig::from_two_points(config::DAMAGE_ZONE_CURVATURE, config::DAMAGE_MAX_FEAR, dead_zone_r)
+                fields::ExpConfig::from_two_points(config::DAMAGE_ZONE_CURVATURE, cost, dead_zone_r)
             )
         );
 
@@ -486,12 +610,94 @@ void MyStrategy::visualise_danger_map(const fields::FieldMap &danger, const geom
             double x_a = center.x + x;
             double y_a = center.y + y;
             double force = danger.get_value(x_a, y_a);
-            force = std::min(force, config::DAMAGE_MAX_FEAR);
-            int color = static_cast<uint8_t>((255.0 / config::DAMAGE_MAX_FEAR) * force);
+            if (force > config::DAMAGE_MAX_FEAR) {
+                force = config::DAMAGE_MAX_FEAR;
+            }
+            if (force < -config::DAMAGE_MAX_FEAR) {
+                force = -config::DAMAGE_MAX_FEAR;
+            }
+
+            int color = static_cast<uint8_t>((255.0 / config::DAMAGE_MAX_FEAR) * std::abs(force));
+            //if (force < 0) {
+            //    color = (color << 16) | 0xff00 |color;
+            //} else {
+            //    color = 0xff0000 | (color << 8) | color;
+            //}
             color = 255 - color;
-            color = (color << 16) | (color << 8) | color;
+                color = (color << 16) | (color << 8) | color;
             VISUAL(fillRect(x_a - half - 1, y_a - half - 1, x_a + half, y_a + half, color));
         }
     }
 #endif
+}
+
+void MyStrategy::update_bonuses() {
+
+    auto my_faction = m_i.s->getFaction();
+    struct VisionRange {
+        VisionRange(double x_, double y_, double r_)
+            : x(x_),
+              y(y_),
+              r(r_) {
+        }
+
+        double x, y, r;
+    };
+    std::vector<VisionRange> team_vision;
+    for (const auto &creep : m_i.w->getMinions()) {
+        if (creep.getFaction() != my_faction) {
+            continue;
+        }
+        team_vision.emplace_back(creep.getX(), creep.getY(), creep.getVisionRange());
+    }
+    for (const auto &wizard : m_i.w->getWizards()) {
+        if (wizard.getFaction() != my_faction) {
+            continue;
+        }
+        team_vision.emplace_back(wizard.getX(), wizard.getY(), wizard.getVisionRange());
+    }
+
+    //Check if bonuses in vision range and exists
+    bool bottom_up = false;
+    bool top_up = false;
+    for (const auto &bns : m_i.w->getBonuses()) {
+        if (bns.getDistanceTo(m_bns_top.pt.x, m_bns_top.pt.y) <= m_i.g->getBonusRadius()) {
+            m_bns_top.time = 0; //Already appeared
+            top_up = true;
+        }
+        if (bns.getDistanceTo(m_bns_bottom.pt.x, m_bns_bottom.pt.y) <= m_i.g->getBonusRadius()) {
+            m_bns_bottom.time = 0; //Already appeared
+            bottom_up = true;
+        }
+    }
+
+    geom::Vec2D ally;
+    geom::Vec2D dist;
+    int bonus_interval = m_i.g->getBonusAppearanceIntervalTicks();
+    for (const auto &ally_vis : team_vision) {
+        ally = {ally_vis.x, ally_vis.y};
+        dist = ally - m_bns_top.pt;
+        if (dist.sqr() <= (ally_vis.r * ally_vis.r) && !top_up && m_bns_top.time == 0) {
+            //In vision but not updated, so it was taken
+            int next_tick = ((m_i.w->getTickIndex() + bonus_interval - 1) / bonus_interval) * bonus_interval;
+            m_bns_top.time = next_tick - m_i.w->getTickIndex() + 1;
+            LOG("Top bonus was taken!\n");
+        }
+
+        dist = ally - m_bns_bottom.pt;
+        if (dist.sqr() <= (ally_vis.r * ally_vis.r) && !bottom_up && m_bns_bottom.time == 0) {
+            //In vision but not updated, so it was taken
+            int next_tick = ((m_i.w->getTickIndex() + bonus_interval - 1) / bonus_interval) * bonus_interval;
+            m_bns_bottom.time = next_tick - m_i.w->getTickIndex() + 1;
+            LOG("Bottom bonus was taken! next time = %d\n", m_bns_bottom.time);
+        }
+    }
+
+    //Decrease remaining time
+    if (m_bns_bottom.time > 0) {
+        --m_bns_bottom.time;
+    }
+    if (m_bns_top.time > 0) {
+        --m_bns_top.time;
+    }
 }

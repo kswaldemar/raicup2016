@@ -13,16 +13,16 @@ namespace fields {
  * В каждой точке определенная притягивает тело в центр с силой поля.
  * Если сила < 0 - поле отталкивающее
  */
-class IVectorField {
+class IField {
 public:
-    IVectorField(const geom::Point2D &center)
+    IField(const geom::Point2D &center)
         : m_center(center) {
     }
 
     /**
-     * Применить силу векторного поля к точке, находящейся в координатах (x; y). Возвращает вектор поля.
+     * Применить силу поля к точке, находящейся в координатах (x; y)
      */
-    virtual geom::Vec2D apply_force(double x, double y) const = 0;
+    virtual double apply_force(double x, double y) const = 0;
 
 protected:
     geom::Point2D m_center;

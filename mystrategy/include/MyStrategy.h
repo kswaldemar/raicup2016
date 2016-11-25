@@ -22,6 +22,7 @@ public:
         BH_ATTACK,
         BH_SCOUT,
         BH_MINIMIZE_DANGER,
+        BH_EARN_BONUS,
         BH_COUNT
     };
 
@@ -61,6 +62,9 @@ private:
     //Danger map
     fields::FieldMap m_danger_map = fields::FieldMap(fields::FieldMap::ADD);
     std::array<MovementHandler, BH_COUNT> m_bhs;
+    BonusDesc m_bns_top;
+    BonusDesc m_bns_bottom;
+    void update_bonuses();
 };
 
 #endif

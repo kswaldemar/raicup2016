@@ -16,13 +16,14 @@
  */
 class PathFinder {
 public:
-    static const int WAYPOINT_RADIUS;
+    static constexpr int WAYPOINT_RADIUS = 200;
     //Pathfind grid step
-    static constexpr int GRID_SIZE = 20;
+    static constexpr int GRID_SIZE = 5;
     //Hardcoded
     static constexpr int WORLD_SIZE = 4000;
     static constexpr int CELL_COUNT = (WORLD_SIZE + GRID_SIZE - 1)/ GRID_SIZE;
-    static constexpr int SEARCH_RADIUS = (600 / GRID_SIZE);
+    //Max cell number to visit before manual halt (if more think there is no way)
+    static constexpr int ASTAR_MAX_VISIT = 5000;
 
 
     struct CellCoord {
@@ -33,8 +34,6 @@ public:
         }
     };
     struct Cell {
-        double danger;
-        double dist;
         //To build path, after searching
         enum DIR {
             U = 1,
@@ -42,12 +41,9 @@ public:
             D = 4,
             L = 8,
         };
-        CellCoord parent_shift;
         CellCoord me;
-
-        bool operator>(const Cell &other) const {
-            return dist + danger * config::DANGER_PATHFIND_COEF < other.dist + other.danger * config::DANGER_PATHFIND_COEF;
-        }
+        const Cell *parent;
+        double cost;
     };
 
     PathFinder(const InfoPack &info);
@@ -64,7 +60,7 @@ public:
     /**
      * Find best way to destination with radius
      */
-    std::list<geom::Point2D> find_way(const geom::Point2D &to, double radius, double max_danger);
+    std::list<geom::Point2D> find_way(const geom::Point2D &to, double radius);
 
     bool check_no_collision(const geom::Point2D &pt, double radius) const;
 
@@ -72,10 +68,11 @@ public:
 
     static geom::Point2D cell_to_world(const CellCoord &cpt);
 
+    bool bonuses_is_under_control() const;
+
 private:
 
     bool is_correct_cell(const CellCoord &tocheck, const CellCoord &initial);
-    bool update_if_better(Cell &from, Cell &to);
 
     const InfoPack *m_i;
     const std::vector<geom::Point2D> *m_waypoints = nullptr;
@@ -83,4 +80,5 @@ private:
     std::array<std::array<Cell, CELL_COUNT>, CELL_COUNT> m_map;
     const fields::FieldMap *m_danger_map;
     std::vector<const model::CircularUnit *> m_obstacles;
+    bool update_cost(const CellCoord &pt_from, const CellCoord &pt_to);
 };

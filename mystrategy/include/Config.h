@@ -35,4 +35,6 @@ extern const double DAMAGE_ZONE_CURVATURE;
 
 extern const double DANGER_PATHFIND_COEF;
 
+extern const double BONUS_EARN_THRESH;
+
 };

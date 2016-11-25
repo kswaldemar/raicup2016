@@ -10,7 +10,7 @@ bool MovementHandler::is_path_spoiled() {
         return true;
     }
     geom::Vec2D dist = m_actual.center - m_initial.center;
-    return dist.len() >= MAX_TARGET_MOVEMENT;
+    return dist.sqr() >= (MAX_TARGET_MOVEMENT * MAX_TARGET_MOVEMENT);
 }
 
 void MovementHandler::update_target(const geom::Point2D &center, double radius) {

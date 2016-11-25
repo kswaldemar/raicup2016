@@ -11,8 +11,8 @@
 class MovementHandler {
 public:
 
-    static constexpr int PATH_SPOIL_TIME = 20;
-    static constexpr double MAX_TARGET_MOVEMENT = 10;
+    int PATH_SPOIL_TIME = 20;
+    static constexpr int MAX_TARGET_MOVEMENT = 10;
 
     bool is_path_spoiled();
 
@@ -38,7 +38,7 @@ private:
 
     TgDesc m_initial;
     TgDesc m_actual;
-    int m_update_tick = -100;
+    int m_update_tick = -10000;
     int m_current_tick;
     std::list<geom::Point2D> m_path;
     std::list<geom::Point2D>::const_iterator m_it;
