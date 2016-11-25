@@ -15,6 +15,11 @@ using namespace geom;
 const double EPS = 0.00003;
 InfoPack g_info;
 
+bool eps_equal(double d1, double d2) {
+    const double diff = d1 - d2;
+    return diff < EPS && diff > -EPS;
+}
+
 
 void MyStrategy::move(const Wizard &self, const World &world, const Game &game, Move &move) {
     //Initialize common used variables, on each tick start
@@ -43,21 +48,20 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     update_bonuses();
 
     //Check for stucking in place
-    static Point2D my_last_pos{self.getX(), self.getY()};
-    //static int my_last_tick = world.getTickIndex();
-    //if (world.getTickIndex() - my_last_tick > 3) {
-    //    my_last_tick = world.getTickIndex();
-    //    my_last_pos = {self.getX(), self.getY()};
-    //}
-    //const bool is_stuck = std::abs(my_last_pos.x - self.getY()) + std::abs(my_last_pos.y - self.getY()) <= 1
-    //                      && !m_pf->check_no_collision({self.getX(), self.getY()}, self.getRadius() + 2);
-    const bool is_stuck = std::abs(self.getSpeedX()) + std::abs(self.getSpeedY()) < 2;
-    if (is_stuck) {
-        LOG("Tick %d: Oh shit, cannot move; last pos (%3.1lf, %3.1lf);\n",
-            world.getTickIndex(),
-            my_last_pos.x,
-            my_last_pos.y);
+    static int hold_time = 0;
+    if (std::abs(self.getSpeedX()) + std::abs(self.getSpeedY()) < 0.1) {
+        ++hold_time;
+    } else {
+        hold_time = 0;
     }
+    const bool not_moved = hold_time >= 3;
+    if (not_moved) {
+        LOG("Tick %d: Not moved in last tick - speed (%3.1lf, %3.1lf)\n",
+            world.getTickIndex(),
+            self.getSpeedX(),
+            self.getSpeedY());
+    }
+
     /*
      * Per tick initialization
      */
@@ -67,14 +71,24 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         m_bhs[i].update_clock(world.getTickIndex());
     }
 
+    const Point2D me{self.getX(), self.getY()};
+
     //Pre actions
     VISUAL(beginPre());
 
-    visualise_danger_map(m_danger_map, {self.getX(), self.getY()});
+    visualise_danger_map(m_danger_map, me);
+
 
     VISUAL(endPre());
 
     VISUAL(beginPost());
+    {
+        char buf[20];
+        sprintf(buf, "%d", m_bns_top.time);
+        VISUAL(text(m_bns_top.pt.x, m_bns_top.pt.y + 50, buf, 0x111199));
+        sprintf(buf, "%d", m_bns_bottom.time);
+        VISUAL(text(m_bns_bottom.pt.x, m_bns_bottom.pt.y + 50, buf, 0x111199));
+    }
 
     //for (const auto &i : m_enemy_towers) {
     //    char buf[20];
@@ -82,27 +96,18 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     //    VISUAL(text(i.x, i.y + 50, buf, 0x009900));
     //}
 
-
-
     Behaviour current_action = BH_COUNT;
     static Behaviour prev_action = BH_COUNT;
 
     Vec2D dir;
-    double danger_level = m_danger_map.get_value(self.getX(), self.getY());
+    double danger_level = m_danger_map.get_value(me);
 
-
-    int best_enemy = 0;
+    int best_enemy = m_ev->choose_enemy();
+    const bool have_target = best_enemy > 0;
     if (danger_level <= config::ATTACK_THRESH && current_action == BH_COUNT) {
         //Danger is ok to attack
-        //TODO: Check many enemies and attack if not too dangerous
-
         m_pf->get_next_waypoint();
-
-        double att_range = 0;
-        const CircularUnit *enemy;
-        best_enemy = m_ev->choose_enemy();
-        Vec2D enemy_attraction{0, 0};
-        if (best_enemy > 0) {
+        if (have_target) {
             //Enemy choosen
             prev_action = current_action;
             current_action = BH_ATTACK;
@@ -125,10 +130,13 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         }
     }
 
-    if (danger_level <= config::BONUS_EARN_THRESH && (best_enemy <= 1400) && m_pf->bonuses_is_under_control()) {
+    static constexpr int NOT_EXPENSIVE_ENEMY = 1400;
+    if (danger_level <= config::BONUS_EARN_THRESH
+        && (best_enemy <= NOT_EXPENSIVE_ENEMY)
+        && m_pf->bonuses_is_under_control()) {
         //Here check for bonuses time and go to one of them
+        bool will_go = false;
         if (m_bhs[BH_EARN_BONUS].is_path_spoiled()) {
-            geom::Point2D me = {self.getX(), self.getY()};
             geom::Vec2D shift_top = m_bns_top.pt - me;
             geom::Vec2D shift_bottom = m_bns_bottom.pt - me;
             const double my_speed = 4;
@@ -144,8 +152,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
                     game.getBonusRadius() + 5
                 );
 
-                prev_action = current_action;
-                current_action = BH_EARN_BONUS;
+                will_go = true;
             }
 
             double tb = shift_bottom.len();
@@ -158,32 +165,21 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
                     game.getBonusRadius() + 5
                 );
 
-                prev_action = current_action;
-                current_action = BH_EARN_BONUS;
+                will_go = true;
             }
 
         }
 
         if (!m_bhs[BH_EARN_BONUS].is_path_spoiled()) {
-
-            prev_action = current_action;
-            current_action = BH_EARN_BONUS;
-
-            //Shoot to enemy, while go to the bonus
-            best_enemy = m_ev->choose_enemy();
-            if (best_enemy > 0) {
-                m_ev->destroy(move);
-            }
-
+            will_go = true;
             dir = m_bhs[BH_EARN_BONUS].get_next_direction(self);
-            m_pf->move_along(dir, move, best_enemy > 0);
-
-            if (is_stuck) {
-                move.setAction(ACTION_STAFF);
-            }
+            m_pf->move_along(dir, move, have_target);
         }
 
-
+        if (will_go) {
+            prev_action = current_action;
+            current_action = BH_EARN_BONUS;
+        }
     }
 
     if (danger_level <= config::SCOUT_THRESH && current_action == BH_COUNT) {
@@ -206,11 +202,6 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         if (dir.len() > EPS) {
             m_pf->move_along(dir, move, false);
         }
-
-        if (is_stuck) {
-            //Better than nothing
-            move.setAction(ACTION_STAFF);
-        }
     }
 
     if (current_action == BH_COUNT || current_action == BH_MINIMIZE_DANGER) {
@@ -225,14 +216,8 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             )
         );
 
-        //Shoot to enemy, while retreat
-        best_enemy = m_ev->choose_enemy();
-        if (best_enemy > 0) {
-            m_ev->destroy(move);
-        }
-
         Point2D from{self.getX(), self.getY()};
-        if (m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled() && is_stuck) {
+        if (m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled() && not_moved) {
             //Possibly stuck in place
             auto way = m_pf->find_way(wp_prev, PathFinder::WAYPOINT_RADIUS - PathFinder::GRID_SIZE);
             m_bhs[BH_MINIMIZE_DANGER].update_target(wp_prev, PathFinder::WAYPOINT_RADIUS);
@@ -248,36 +233,59 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         } else {
             dir = damage_avoid_vector(from);
         }
-        m_pf->move_along(dir, move, best_enemy > 0);
+        m_pf->move_along(dir, move, have_target);
     }
+
+    //If we stuck in the tree - destroy it
+    if (not_moved) {
+        double min_dist = 1e9;
+        double min_angle = pi;
+        const model::Tree *target = nullptr;
+        for (const auto &tree : world.getTrees()) {
+            double ang = std::abs(self.getAngleTo(tree));
+            double dist = self.getDistanceTo(tree);
+            if (dist < min_dist || (eps_equal(dist, min_dist) && ang < min_angle)) {
+                min_dist = dist;
+                min_angle = ang;
+                target = &tree;
+            }
+        }
+        if (target && min_dist <= target->getRadius() + game.getStaffRange()) {
+            double ang = self.getAngleTo(*target);
+            if (!have_target && (std::abs(ang) >= game.getStaffSector() / 2.0)) {
+                move.setTurn(ang);
+            }
+            if (std::abs(ang) < game.getStaffSector() / 2.0) {
+                move.setAction(ACTION_STAFF);
+            }
+        }
+    }
+
+    //Try to destroy enemy, while going to another targets
+    if ((current_action == BH_MINIMIZE_DANGER || current_action == BH_EARN_BONUS) && have_target) {
+        m_ev->destroy(move);
+    }
+
 
 #ifdef RUNNING_LOCAL
-    dir *= 3;
-    VISUAL(line(self.getX(), self.getY(), self.getX() + dir.x, self.getY() + dir.y, 0xB325DA));
-    char buf[10];
-    char c = 'N';
-    assert(current_action != BH_COUNT);
-    switch (current_action) {
-        case BH_MINIMIZE_DANGER:c = 'M';
-            break;
-        case BH_ATTACK:c = 'A';
-            break;
-        case BH_SCOUT:c = 'R';
-            break;
-        case BH_EARN_BONUS: c = 'B';
-            break;
-    }
-    sprintf(buf, "%c %3.1lf%%", c, m_danger_map.get_value(self.getX(), self.getY()));
-    VISUAL(text(self.getX() - 70, self.getY() - 60, buf, 0xFF0000));
+        dir *= 3;
+        VISUAL(line(self.getX(), self.getY(), self.getX() + dir.x, self.getY() + dir.y, 0xB325DA));
+        char buf[10];
+        char c = 'N';
+        assert(current_action != BH_COUNT);
+        switch (current_action) {
+            case BH_MINIMIZE_DANGER:c = 'M';
+                break;
+            case BH_ATTACK:c = 'A';
+                break;
+            case BH_SCOUT:c = 'R';
+                break;
+            case BH_EARN_BONUS: c = 'B';
+                break;
+        }
+        sprintf(buf, "%c %3.1lf%%", c, m_danger_map.get_value(self.getX(), self.getY()));
+        VISUAL(text(self.getX() - 70, self.getY() - 60, buf, 0xFF0000));
 #endif
-
-    //Hack to take bonus if near
-    //for (const auto &b : world.getBonuses()) {
-    //    if (b.getDistanceTo(self) + b.getRadius() <= 5) {
-    //        m_pf->move_along({b.getX() - self.getX(), b.getY() - self.getY()}, move, true);
-    //        m_bhs[BH_EARN_BONUS].update_target({0,0}, 1);
-    //    }
-    //}
 
     VISUAL(endPost());
 }

@@ -167,7 +167,7 @@ int Eviscerator::choose_enemy() {
                 if (unit.getFaction() == model::FACTION_NEUTRAL) {
                     cost = 100;
                 } else {
-                    cost = 500;
+                    cost = 600;
                 }
                 break;
             case EnemyDesc::Type::MINION_FETISH:
@@ -256,7 +256,7 @@ Eviscerator::DestroyDesc Eviscerator::destroy(model::Move &move) {
             } else if (cooldowns[model::ACTION_STAFF] == 0) {
                 //Check enemy in staff range
                 for (const auto &i : m_enemies) {
-                    double d = m_i->s->getDistanceTo(*i.unit) + i.unit->getRadius();
+                    double d = m_i->s->getDistanceTo(*i.unit) - i.unit->getRadius();
                     double a = m_i->s->getAngleTo(*i.unit);
                     if (d <= m_i->g->getStaffRange() && std::abs(a) < m_i->g->getStaffSector() / 2.0) {
                         LOG("Extra enemy push!\n");
