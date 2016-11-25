@@ -7,7 +7,7 @@
 /**
  * Описание определенных полей, которые наследуются от IVectorField
  */
-#include "VectorField.h"
+#include "Field.h"
 
 #include <memory>
 #include <list>

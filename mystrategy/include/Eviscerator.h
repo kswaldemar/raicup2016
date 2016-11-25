@@ -10,7 +10,7 @@
 #include "model/Minion.h"
 #include "Vec2D.h"
 #include "InfoPack.h"
-#include "VectorField.h"
+#include "Field.h"
 #include "UnitDesc.h"
 
 #include <memory>
