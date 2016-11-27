@@ -8,6 +8,7 @@
 
 #include <cassert>
 #include <list>
+#include <algorithm>
 
 using namespace model;
 using namespace std;
@@ -266,6 +267,23 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         m_ev->destroy(move);
     }
 
+    //TODO: Rewrite it
+    const auto &skills = self.getSkills();
+    const auto &statuses = self.getStatuses();
+    const bool has_shield = std::find(skills.cbegin(), skills.cend(), model::SKILL_SHIELD) != skills.cend();
+    const bool has_haste = std::find(skills.cbegin(), skills.cend(), model::SKILL_HASTE) != skills.cend();
+    bool shielded = false;
+    bool hastened = false;
+    for (const auto &st : statuses) {
+        shielded = shielded || st.getType() == STATUS_SHIELDED;
+        hastened = hastened || st.getType() == STATUS_HASTENED;
+    }
+
+    if (has_shield && !shielded && self.getMana() >= game.getShieldManacost()) {
+        move.setAction(ACTION_SHIELD);
+    } else if (has_haste && !hastened && self.getMana() >= game.getHasteManacost()) {
+        move.setAction(ACTION_HASTE);
+    }
 
 #ifdef RUNNING_LOCAL
     dir *= 3;

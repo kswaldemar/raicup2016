@@ -28,8 +28,9 @@ void SkillBuilder::try_level_up(model::Move &move) const {
 
     static const std::vector<Skill> build {
         FIRE, FIRE, FIRE, FIRE, FIRE,
-        WATER, WATER, WATER, WATER, WATER,
-        SHIELD, SHIELD, SHIELD,
+        SHIELD, SHIELD, SHIELD, SHIELD, SHIELD,
+        WATER, WATER, WATER,
+        HASTE, HASTE, HASTE, HASTE,
         RANGE, RANGE, RANGE, RANGE, RANGE
     };
 

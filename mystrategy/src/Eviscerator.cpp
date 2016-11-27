@@ -261,10 +261,9 @@ Eviscerator::DestroyDesc Eviscerator::destroy(model::Move &move) {
     }
 
     if (chosen == model::ACTION_NONE && has_fireball && cooldowns[model::ACTION_FIREBALL] == 0) {
-
         attack_range = m_i->s->getCastRange() + m_i->g->getFireballRadius() / 2.0;
         missile_radius = m_i->g->getFireballRadius();
-        if (distance <= attack_range) {
+        if (distance <= attack_range && distance > m_i->g->getFireballExplosionMinDamageRange() + m_i->s->getRadius()) {
             chosen = model::ACTION_FIREBALL;
         }
     }
