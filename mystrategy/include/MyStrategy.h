@@ -11,6 +11,7 @@
 #include "UnitDesc.h"
 #include "FieldMap.h"
 #include "MovementHandler.h"
+#include "SkillBuilder.h"
 
 #include <memory>
 #include <list>
@@ -53,10 +54,15 @@ public:
      */
     void update_danger_map();
 
+    void update_bonuses();
+
+    void each_tick_update(const model::Wizard &self, const model::World &world, const model::Game &game);
+
 private:
     InfoPack m_i;
     std::unique_ptr<PathFinder> m_pf;
     std::unique_ptr<Eviscerator> m_ev;
+    std::unique_ptr<SkillBuilder> m_sb;
     //Enemy towers, to not forget in fog of war
     std::list<TowerDesc> m_enemy_towers;
     //Danger map
@@ -64,8 +70,6 @@ private:
     std::array<MovementHandler, BH_COUNT> m_bhs;
     BonusDesc m_bns_top;
     BonusDesc m_bns_bottom;
-    void update_bonuses();
-    void each_tick_update(const model::Wizard &self, const model::World &world, const model::Game &game);
 };
 
 #endif

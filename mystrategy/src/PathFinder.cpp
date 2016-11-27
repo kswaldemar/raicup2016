@@ -144,14 +144,45 @@ void PathFinder::move_along(const geom::Vec2D &dir, model::Move &move, bool hold
         f_b *= m_i->g->getWizardBackwardSpeed();
     }
 
+    //Speed increase factor
+    double factor = 1.0;
+
     //Checking for haste
     const auto &statuses = m_i->s->getStatuses();
     for (const auto &st : statuses) {
         if (st.getType() == model::STATUS_HASTENED) {
-            strafe *= 1.0 + m_i->g->getHastenedMovementBonusFactor();
-            f_b *= 1.0 + m_i->g->getHastenedMovementBonusFactor();
+            factor += m_i->g->getHastenedMovementBonusFactor();
+            break;
         }
     }
+
+    //Self passive skills
+    for (const auto &skill : m_i->s->getSkills()) {
+        if (skill == model::SKILL_MOVEMENT_BONUS_FACTOR_PASSIVE_1
+            || skill == model::SKILL_MOVEMENT_BONUS_FACTOR_PASSIVE_2) {
+            factor += m_i->g->getMovementBonusFactorPerSkillLevel();
+        }
+    }
+
+    //Allies aura
+    int max_aura = 0;
+    for (const auto &wizard : m_i->w->getWizards()) {
+        for (const auto &skill : wizard.getSkills()) {
+            if (wizard.getDistanceTo(*m_i->s) <= m_i->g->getAuraSkillRange()
+                && (skill == model::SKILL_MOVEMENT_BONUS_FACTOR_PASSIVE_1
+                    || skill == model::SKILL_MOVEMENT_BONUS_FACTOR_PASSIVE_2)) {
+
+                max_aura = std::max<int>(model::SKILL_MOVEMENT_BONUS_FACTOR_AURA_1, max_aura);
+            }
+        }
+    }
+    if (max_aura > 0) {
+        max_aura -= model::SKILL_MOVEMENT_BONUS_FACTOR_AURA_1;
+        factor += m_i->g->getMovementBonusFactorPerSkillLevel() * (max_aura + 1);
+    }
+
+    strafe *= factor;
+    f_b *= factor;
 
     move.setStrafeSpeed(strafe);
     move.setSpeed(f_b);
@@ -351,16 +382,13 @@ bool PathFinder::bonuses_is_under_control() const {
         case 1:
         case 2:
         case 6:
-        case 7:
-            return wp_idx >= 5;
+        case 7:return wp_idx >= 5;
         case 3:
-        case 8:
-            return wp_idx >= 2;
+        case 8:return wp_idx >= 2;
         case 4:
         case 5:
         case 9:
-        case 10:
-            return wp_idx >= 5;
+        case 10:return wp_idx >= 5;
             break;
         default:break;
     }

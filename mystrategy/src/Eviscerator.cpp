@@ -11,6 +11,7 @@
 #include "Logger.h"
 
 #include <cassert>
+#include <algorithm>
 
 Eviscerator::Eviscerator(const InfoPack &info)
     : m_i(&info) {
@@ -227,10 +228,7 @@ Eviscerator::DestroyDesc Eviscerator::destroy(model::Move &move) {
     } else if (m_target->type == EnemyDesc::Type::MINION_ORC) {
         min_range = unit.getRadius() + m_i->g->getStaffRange();
     } else {
-        min_range = m_i->s->getCastRange() + unit.getRadius() + m_i->g->getMagicMissileRadius();
-        if (m_target->type == EnemyDesc::Type::WIZARD) {
-            min_range -= 10;
-        }
+        min_range = m_i->s->getCastRange() + unit.getRadius();
     }
 
     VISUAL(line(m_i->s->getX(), m_i->s->getY(), unit.getX(), unit.getY(), 0x0000FF));
@@ -243,33 +241,76 @@ Eviscerator::DestroyDesc Eviscerator::destroy(model::Move &move) {
     VISUAL(circle(unit.getX(), unit.getY(), config::ENEMY_DETECT_RANGE, 0x008800));
 
     double distance = m_i->s->getDistanceTo(unit) - unit.getRadius();
-    double my_attack_range = m_i->s->getCastRange() + m_i->g->getMagicMissileRadius();
-    if (distance <= my_attack_range) {
-        //Target near
-        double angle = m_i->s->getAngleTo(unit);
-        move.setTurn(angle);
-        if (std::abs(angle) < m_i->g->getStaffSector() / 2.0) {
-            //Attack
-            const auto &cooldowns = m_i->s->getRemainingCooldownTicksByAction();
-            if (distance <= m_i->g->getStaffRange() && (cooldowns[model::ACTION_STAFF] == 0)) {
-                move.setAction(model::ACTION_STAFF);
-            } else if (cooldowns[model::ACTION_MAGIC_MISSILE] == 0) {
-                move.setAction(model::ACTION_MAGIC_MISSILE);
-            } else if (cooldowns[model::ACTION_STAFF] == 0) {
-                //Check enemy in staff range
-                for (const auto &i : m_enemies) {
-                    double d = m_i->s->getDistanceTo(*i.unit) - i.unit->getRadius();
-                    double a = m_i->s->getAngleTo(*i.unit);
-                    if (d <= m_i->g->getStaffRange() && std::abs(a) < m_i->g->getStaffSector() / 2.0) {
-                        LOG("Extra enemy push!\n");
-                        move.setAction(model::ACTION_STAFF);
-                    }
-                }
-            }
-            move.setCastAngle(angle);
-            move.setMinCastDistance(distance - m_i->g->getMagicMissileRadius());
+
+    const auto &skills = m_i->s->getSkills();
+    const auto &cooldowns = m_i->s->getRemainingCooldownTicksByAction();
+
+    const bool has_fireball = std::find(skills.cbegin(), skills.cend(), model::SKILL_FIREBALL) != skills.cend();
+    const bool has_frostbolt = std::find(skills.cbegin(), skills.cend(), model::SKILL_FROST_BOLT) != skills.cend();
+
+    //Choose attack method, order set priority
+    double attack_range = unit.getRadius(); //Depend on skill
+    double missile_radius = 0;
+    model::ActionType chosen = model::ACTION_NONE;
+
+    if (chosen == model::ACTION_NONE && cooldowns[model::ACTION_STAFF] == 0) {
+        attack_range = m_i->g->getStaffRange();
+        if (distance <= attack_range) {
+            chosen = model::ACTION_STAFF;
         }
     }
+
+    if (chosen == model::ACTION_NONE && has_fireball && cooldowns[model::ACTION_FIREBALL] == 0) {
+
+        attack_range = m_i->s->getCastRange() + m_i->g->getFireballRadius() / 2.0;
+        missile_radius = m_i->g->getFireballRadius();
+        if (distance <= attack_range) {
+            chosen = model::ACTION_FIREBALL;
+        }
+    }
+
+    if (chosen == model::ACTION_NONE && has_frostbolt && cooldowns[model::ACTION_FROST_BOLT] == 0) {
+        attack_range = m_i->s->getCastRange();
+        missile_radius = m_i->g->getFrostBoltRadius();
+        if (distance <= attack_range) {
+            chosen = model::ACTION_FROST_BOLT;
+        }
+    }
+
+    if (chosen == model::ACTION_NONE && cooldowns[model::ACTION_MAGIC_MISSILE] == 0) {
+        attack_range = m_i->s->getCastRange();
+        missile_radius = m_i->g->getMagicMissileRadius();
+        if (distance <= attack_range) {
+            chosen = model::ACTION_MAGIC_MISSILE;
+        }
+    }
+
+    const double angle = m_i->s->getAngleTo(unit);
+    const double can_shoot = std::abs(angle) < m_i->g->getStaffSector() / 2.0;
+
+    move.setCastAngle(angle);
+    move.setMinCastDistance(distance - missile_radius);
+
+    if (distance <= m_i->s->getVisionRange()) {
+        move.setTurn(angle);
+    }
+
+    if (chosen != model::ACTION_NONE && can_shoot) {
+        move.setAction(chosen);
+    }
+
+    if (!can_shoot) {
+        //Cannot attack desired enemy right now, try to find extra enemy to punish
+        for (const auto &i : m_enemies) {
+            double d = m_i->s->getDistanceTo(*i.unit) - i.unit->getRadius();
+            double a = m_i->s->getAngleTo(*i.unit);
+            if (d <= m_i->g->getStaffRange() && std::abs(a) < m_i->g->getStaffSector() / 2.0) {
+                LOG("Extra enemy push!\n");
+                move.setAction(model::ACTION_STAFF);
+            }
+        }
+    }
+
     return {m_target->unit, min_range};
 }
 

@@ -26,6 +26,8 @@ MyStrategy::MyStrategy() {
 }
 
 void MyStrategy::move(const Wizard &self, const World &world, const Game &game, Move &move) {
+    //Initialize info pack first
+    initialize_info_pack(self, world, game);
 
     //Initialize once
     static bool initialized = initialize_strategy(self, world, game);
@@ -34,6 +36,10 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     //Update information
     each_tick_update(self, world, game);
 
+    //Try learn something
+    if (game.isSkillsEnabled()) {
+        m_sb->try_level_up(move);
+    }
 
     //Check for stucking in place
     static int hold_time = 0;
@@ -44,7 +50,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     }
     const bool not_moved = hold_time >= 3;
     if (not_moved) {
-        LOG("Tick %d: Not moved in last tick - speed (%3.1lf, %3.1lf)\n",
+        LOG("Tick %d: Not moved in last tick - spd (%3.1lf, %3.1lf)\n",
             world.getTickIndex(),
             self.getSpeedX(),
             self.getSpeedY());
@@ -262,30 +268,39 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
 
 
 #ifdef RUNNING_LOCAL
-        dir *= 3;
-        VISUAL(line(self.getX(), self.getY(), self.getX() + dir.x, self.getY() + dir.y, 0xB325DA));
-        char buf[10];
-        char c = 'N';
-        assert(current_action != BH_COUNT);
-        switch (current_action) {
-            case BH_MINIMIZE_DANGER:c = 'M';
-                break;
-            case BH_ATTACK:c = 'A';
-                break;
-            case BH_SCOUT:c = 'R';
-                break;
-            case BH_EARN_BONUS: c = 'B';
-                break;
-        }
-        sprintf(buf, "%c %3.1lf%%", c, m_danger_map.get_value(self.getX(), self.getY()));
-        VISUAL(text(self.getX() - 70, self.getY() - 60, buf, 0xFF0000));
+    dir *= 3;
+    VISUAL(line(self.getX(), self.getY(), self.getX() + dir.x, self.getY() + dir.y, 0xB325DA));
+    char buf[10];
+    char c = 'N';
+    assert(current_action != BH_COUNT);
+    switch (current_action) {
+        case BH_MINIMIZE_DANGER:c = 'M';
+            break;
+        case BH_ATTACK:c = 'A';
+            break;
+        case BH_SCOUT:c = 'R';
+            break;
+        case BH_EARN_BONUS: c = 'B';
+            break;
+    }
+    sprintf(buf, "%c %3.1lf%%", c, m_danger_map.get_value(self.getX(), self.getY()));
+    VISUAL(text(self.getX() - 70, self.getY() - 60, buf, 0xFF0000));
+    //Vec2D spd{self.getSpeedX(), self.getSpeedY()};
+    //sprintf(buf, "spd %3.1lf", spd.len());
+    //VISUAL(text(self.getX(), self.getY() - 70, buf, 0x009911));
 #endif
 
+
     VISUAL(endPost());
+
+    if (world.getTickIndex() % 100 == 0) {
+        LOG("Try to learn %d\n", move.getSkillToLearn());
+    }
+
+
 }
 
 void MyStrategy::each_tick_update(const model::Wizard &self, const model::World &world, const model::Game &game) {
-    initialize_info_pack(self, world, game);
 
     //Check about our death
     static int last_tick = 0;
@@ -306,10 +321,10 @@ void MyStrategy::each_tick_update(const model::Wizard &self, const model::World 
 
     m_pf->update_info(m_i, m_danger_map);
     m_ev->update_info(m_i);
+    m_sb->update_info(m_i);
     for (int i = 0; i < BH_COUNT; ++i) {
         m_bhs[i].update_clock(world.getTickIndex());
     }
-
 }
 
 void MyStrategy::initialize_info_pack(const model::Wizard &self, const model::World &world, const model::Game &game) {
@@ -323,8 +338,11 @@ void MyStrategy::initialize_info_pack(const model::Wizard &self, const model::Wo
 }
 
 bool MyStrategy::initialize_strategy(const model::Wizard &self, const model::World &world, const model::Game &game) {
+
     m_pf = make_unique<PathFinder>(m_i);
     m_ev = make_unique<Eviscerator>(m_i);
+    m_sb = make_unique<SkillBuilder>();
+
     m_bhs[BH_MINIMIZE_DANGER].PATH_SPOIL_TIME = 100;
 
     m_bns_top.pt = {1200, 1200};
@@ -638,7 +656,7 @@ void MyStrategy::visualise_danger_map(const fields::FieldMap &danger, const geom
             int color = static_cast<uint8_t>((255.0 / config::DAMAGE_MAX_FEAR) * std::abs(force));
             color = 255 - color;
             if (force < 0) {
-                color = (color << 16) | 0xff00 |color;
+                color = (color << 16) | 0xff00 | color;
             } else {
                 color = (color << 16) | (color << 8) | color;
             }
