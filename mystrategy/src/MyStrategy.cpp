@@ -3,6 +3,7 @@
 #include "MyStrategy.h"
 #include "PathFinder.h"
 #include "Logger.h"
+#include "CustomField.h"
 #include "VisualDebug.h"
 
 #include <cassert>
@@ -21,31 +22,18 @@ bool eps_equal(double d1, double d2) {
 }
 
 
-void MyStrategy::move(const Wizard &self, const World &world, const Game &game, Move &move) {
-    //Initialize common used variables, on each tick start
-    initialize_info_pack(self, world, game);
+MyStrategy::MyStrategy() {
+}
 
+void MyStrategy::move(const Wizard &self, const World &world, const Game &game, Move &move) {
+
+    //Initialize once
     static bool initialized = initialize_strategy(self, world, game);
     assert(initialized);
 
-    //Check about our death
-    static int last_tick = 0;
-    int cur_tick = world.getTickIndex();
-    if (cur_tick - last_tick >= game.getWizardMinResurrectionDelayTicks()) {
-        //Seems resurrection
-        m_pf = make_unique<PathFinder>(m_i);
+    //Update information
+    each_tick_update(self, world, game);
 
-    }
-    last_tick = cur_tick;
-
-    //Update towers info
-    update_shadow_towers(m_enemy_towers, world, self.getFaction());
-
-    //Calculate danger map
-    update_danger_map();
-
-    //Update bonuses info
-    update_bonuses();
 
     //Check for stucking in place
     static int hold_time = 0;
@@ -62,22 +50,12 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             self.getSpeedY());
     }
 
-    /*
-     * Per tick initialization
-     */
-    m_pf->update_info(m_i, m_danger_map);
-    m_ev->update_info(m_i);
-    for (int i = 0; i < BH_COUNT; ++i) {
-        m_bhs[i].update_clock(world.getTickIndex());
-    }
-
     const Point2D me{self.getX(), self.getY()};
 
     //Pre actions
     VISUAL(beginPre());
 
     visualise_danger_map(m_danger_map, me);
-
 
     VISUAL(endPre());
 
@@ -306,7 +284,32 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     VISUAL(endPost());
 }
 
-MyStrategy::MyStrategy() {
+void MyStrategy::each_tick_update(const model::Wizard &self, const model::World &world, const model::Game &game) {
+    initialize_info_pack(self, world, game);
+
+    //Check about our death
+    static int last_tick = 0;
+    int cur_tick = world.getTickIndex();
+    if (cur_tick - last_tick >= game.getWizardMinResurrectionDelayTicks()) {
+        //Seems resurrection
+        m_pf = make_unique<PathFinder>(m_i);
+
+    }
+    last_tick = cur_tick;
+
+    //Update towers info
+    update_shadow_towers(m_enemy_towers, world, self.getFaction());
+    //Calculate danger map
+    update_danger_map();
+    //Update bonuses info
+    update_bonuses();
+
+    m_pf->update_info(m_i, m_danger_map);
+    m_ev->update_info(m_i);
+    for (int i = 0; i < BH_COUNT; ++i) {
+        m_bhs[i].update_clock(world.getTickIndex());
+    }
+
 }
 
 void MyStrategy::initialize_info_pack(const model::Wizard &self, const model::World &world, const model::Game &game) {
@@ -545,15 +548,30 @@ void MyStrategy::update_danger_map() {
                                attack_range,
                                m_i.g->getMinionSpeed()};
         double dead_zone_r = Eviscerator::calc_dead_zone(me, enemy);
-        damage_fields.add_field(
-            std::make_unique<fields::ExpRingField>(
-                Point2D{minion.getX(), minion.getY()},
-                0,
-                minion.getVisionRange() + 30,
-                false,
-                fields::ExpConfig::from_two_points(config::DAMAGE_ZONE_CURVATURE, config::DAMAGE_MAX_FEAR, dead_zone_r)
-            )
-        );
+
+        if (minion.getType() == MINION_ORC_WOODCUTTER) {
+            damage_fields.add_field(
+                std::make_unique<fields::CustomField>(
+                    Point2D{minion.getX(), minion.getY()},
+                    0,
+                    minion.getRadius() + m_i.g->getStaffRange(),
+                    [](double x) -> double {
+                        return 70;
+                    }
+                )
+            );
+        } else {
+            damage_fields.add_field(
+                std::make_unique<fields::CustomField>(
+                    Point2D{minion.getX(), minion.getY()},
+                    0,
+                    m_i.g->getFetishBlowdartAttackRange() + m_i.s->getRadius(),
+                    [](double x) -> double {
+                        return 20;
+                    }
+                )
+            );
+        }
     }
     for (const auto &wizard : wizards) {
         if (wizard.getFaction() == FACTION_NEUTRAL || wizard.getFaction() == m_i.s->getFaction()) {
@@ -618,13 +636,14 @@ void MyStrategy::visualise_danger_map(const fields::FieldMap &danger, const geom
             }
 
             int color = static_cast<uint8_t>((255.0 / config::DAMAGE_MAX_FEAR) * std::abs(force));
-            //if (force < 0) {
-            //    color = (color << 16) | 0xff00 |color;
-            //} else {
-            //    color = 0xff0000 | (color << 8) | color;
-            //}
             color = 255 - color;
+            if (force < 0) {
+                color = (color << 16) | 0xff00 |color;
+            } else {
                 color = (color << 16) | (color << 8) | color;
+            }
+
+
             VISUAL(fillRect(x_a - half - 1, y_a - half - 1, x_a + half, y_a + half, color));
         }
     }
@@ -680,7 +699,7 @@ void MyStrategy::update_bonuses() {
         if (dist.sqr() <= (ally_vis.r * ally_vis.r) && !top_up && m_bns_top.time == 0) {
             //In vision but not updated, so it was taken
             int next_tick = ((m_i.w->getTickIndex() + bonus_interval - 1) / bonus_interval) * bonus_interval;
-            m_bns_top.time = next_tick - m_i.w->getTickIndex() + 1;
+            m_bns_top.time = next_tick - m_i.w->getTickIndex() + 2;
             LOG("Top bonus was taken!\n");
         }
 
@@ -688,7 +707,7 @@ void MyStrategy::update_bonuses() {
         if (dist.sqr() <= (ally_vis.r * ally_vis.r) && !bottom_up && m_bns_bottom.time == 0) {
             //In vision but not updated, so it was taken
             int next_tick = ((m_i.w->getTickIndex() + bonus_interval - 1) / bonus_interval) * bonus_interval;
-            m_bns_bottom.time = next_tick - m_i.w->getTickIndex() + 1;
+            m_bns_bottom.time = next_tick - m_i.w->getTickIndex() + 2;
             LOG("Bottom bonus was taken! next time = %d\n", m_bns_bottom.time);
         }
     }

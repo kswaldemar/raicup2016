@@ -13,7 +13,7 @@ ConstRingField::ConstRingField(const geom::Point2D &center, double r1, double r2
     assert(r2 >= 0);
 }
 
-double ConstRingField::apply_force(double x, double y) const {
+double ConstRingField::get_value(double x, double y) const {
     geom::Vec2D v(m_center.x - x, m_center.y - y);
     double dist = v.sqr();
     if (dist >= m_r1 && dist <= m_r2) {
@@ -41,7 +41,7 @@ ExpRingField::ExpRingField(const geom::Point2D &center,
 }
 
 
-double ExpRingField::apply_force(double x, double y) const {
+double ExpRingField::get_value(double x, double y) const {
     double dist = geom::sqr(m_center.x - x) + geom::sqr(m_center.y - y);
     if (dist >= m_r1 && dist <= m_r2) {
         double mod = m_V * exp(-sqrt(dist) * m_k);
@@ -55,7 +55,7 @@ LinearField::LinearField(const geom::Point2D &center, double r1, double r2, doub
 
 }
 
-double LinearField::apply_force(double x, double y) const {
+double LinearField::get_value(double x, double y) const {
     geom::Vec2D v(m_center.x - x, m_center.y - y);
     double dist = v.len();
     if (dist >= m_r1 && dist <= m_r2) {
@@ -63,4 +63,6 @@ double LinearField::apply_force(double x, double y) const {
     }
     return 0;
 }
+
+
 }

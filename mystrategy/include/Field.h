@@ -22,7 +22,7 @@ public:
     /**
      * Применить силу поля к точке, находящейся в координатах (x; y)
      */
-    virtual double apply_force(double x, double y) const = 0;
+    virtual double get_value(double x, double y) const = 0;
 
 protected:
     geom::Point2D m_center;

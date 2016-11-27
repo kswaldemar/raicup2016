@@ -65,6 +65,7 @@ private:
     BonusDesc m_bns_top;
     BonusDesc m_bns_bottom;
     void update_bonuses();
+    void each_tick_update(const model::Wizard &self, const model::World &world, const model::Game &game);
 };
 
 #endif

@@ -19,13 +19,13 @@ double FieldMap::get_value(double x, double y) const {
     for (const auto &fld : m_fields) {
         switch (m_rules) {
             case ADD:
-                force += fld->apply_force(x, y);
+                force += fld->get_value(x, y);
                 break;
             case MAX:
-                force = std::max(force, fld->apply_force(x, y));
+                force = std::max(force, fld->get_value(x, y));
                 break;
             case MIN:
-                force = std::min(force, fld->apply_force(x, y));
+                force = std::min(force, fld->get_value(x, y));
                 break;
         }
     }

@@ -21,7 +21,7 @@ class ConstRingField : public IField {
 public:
     ConstRingField(const geom::Point2D &center, double r1, double r2, double force);
 
-    double apply_force(double x, double y) const override;
+    double get_value(double x, double y) const override;
 protected:
     double m_r1;
     double m_r2;
@@ -33,20 +33,12 @@ class LinearField : public IField {
 public:
     LinearField(const geom::Point2D &center, double r1, double r2, double force);
 
-    double apply_force(double x, double y) const override;
+    double get_value(double x, double y) const override;
 protected:
     double m_r1;
     double m_r2;
     double m_force;
 };
-
-/**
- * Поле влияющие в диапазоне r1 <= x <= r2 с силой, изменяющейся линейно от расстояния
- */
-//TODO: Implement
-//class LinearRingField : public IVectorField {
-//
-//};
 
 /**
  * Конфигурация, для представления экспоненциальной силы
@@ -66,7 +58,7 @@ class ExpRingField : public IField {
 public:
     ExpRingField(const geom::Point2D &center, double r1, double r2, bool is_attractive, const ExpConfig &conf);
 
-    double apply_force(double x, double y) const override;
+    double get_value(double x, double y) const override;
 
 protected:
     double m_r1;

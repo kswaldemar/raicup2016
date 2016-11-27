@@ -13,6 +13,7 @@ set(sources
     src/MovementHandler.cpp
     src/PathFinder.cpp
     src/VisualDebug.cpp
+    src/CustomField.cpp
 )
 file(GLOB headers include/*.h)
 

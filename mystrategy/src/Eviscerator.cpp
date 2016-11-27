@@ -222,8 +222,10 @@ Eviscerator::DestroyDesc Eviscerator::destroy(model::Move &move) {
 
     const model::LivingUnit &unit = *m_target->unit;
     double min_range;
-    if (m_target->type == EnemyDesc::Type::MINION_FETISH || m_target->type == EnemyDesc::Type::MINION_ORC) {
+    if (m_target->type == EnemyDesc::Type::MINION_FETISH){
         min_range = unit.getRadius() + m_i->g->getMinionVisionRange();
+    } else if (m_target->type == EnemyDesc::Type::MINION_ORC) {
+        min_range = unit.getRadius() + m_i->g->getStaffRange();
     } else {
         min_range = m_i->s->getCastRange() + unit.getRadius() + m_i->g->getMagicMissileRadius();
         if (m_target->type == EnemyDesc::Type::WIZARD) {
