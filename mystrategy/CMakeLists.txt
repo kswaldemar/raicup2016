@@ -14,6 +14,8 @@ set(sources
     src/PathFinder.cpp
     src/VisualDebug.cpp
     src/CustomField.cpp
+    src/SkillBuilder.cpp
+    src/ExWorld.cpp
 )
 file(GLOB headers include/*.h)
 

@@ -62,8 +62,6 @@ public:
      */
     std::list<geom::Point2D> find_way(const geom::Point2D &to, double radius);
 
-    bool check_no_collision(const geom::Point2D &pt, double radius) const;
-
     static CellCoord world_to_cell(const geom::Point2D &wpt);
 
     static geom::Point2D cell_to_world(const CellCoord &cpt);

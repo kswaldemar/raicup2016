@@ -78,7 +78,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
 #endif
 
 #ifdef RUNNING_LOCAL
-    for (const auto &i : m_enemy_towers) {
+    for (const auto &i : m_i.ew->get_hostile_towers()) {
         char buf[20];
         sprintf(buf, "%d", i.rem_cooldown);
         VISUAL(text(i.x, i.y + 50, buf, 0x00CC00));
@@ -318,6 +318,30 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
 
 }
 
+void MyStrategy::initialize_info_pack(const model::Wizard &self, const model::World &world, const model::Game &game) {
+    m_i.s = &self;
+    m_i.w = &world;
+    m_i.g = &game;
+}
+
+bool MyStrategy::initialize_strategy(const model::Wizard &self, const model::World &world, const model::Game &game) {
+
+    m_pf = make_unique<PathFinder>(m_i);
+    m_ev = make_unique<Eviscerator>(m_i);
+    m_sb = make_unique<SkillBuilder>();
+
+    m_i.ew = make_unique<ExWorld>(world, game);
+
+    m_bhs[BH_MINIMIZE_DANGER].PATH_SPOIL_TIME = 100;
+
+    m_bns_top.pt = {1200, 1200};
+    m_bns_top.time = 2501;
+    m_bns_bottom.pt = {2800, 2800};
+    m_bns_bottom.time = m_bns_top.time;
+
+    return true;
+}
+
 void MyStrategy::each_tick_update(const model::Wizard &self, const model::World &world, const model::Game &game) {
 
     //Check about our death
@@ -330,11 +354,12 @@ void MyStrategy::each_tick_update(const model::Wizard &self, const model::World 
     }
     last_tick = cur_tick;
 
-    //Update towers info
-    update_shadow_towers(m_enemy_towers, world, self.getFaction());
+    m_i.ew->update_world(world);
+
     //Calculate danger map
     update_danger_map();
     //Update bonuses info
+    //TODO: Move to ExWorld
     update_bonuses();
 
     m_pf->update_info(m_i, m_danger_map);
@@ -343,55 +368,6 @@ void MyStrategy::each_tick_update(const model::Wizard &self, const model::World 
     for (int i = 0; i < BH_COUNT; ++i) {
         m_bhs[i].update_clock(world.getTickIndex());
     }
-}
-
-void MyStrategy::initialize_info_pack(const model::Wizard &self, const model::World &world, const model::Game &game) {
-    m_i.s = &self;
-    m_i.w = &world;
-    m_i.g = &game;
-
-    g_info.s = &self;
-    g_info.w = &world;
-    g_info.g = &game;
-}
-
-bool MyStrategy::initialize_strategy(const model::Wizard &self, const model::World &world, const model::Game &game) {
-
-    m_pf = make_unique<PathFinder>(m_i);
-    m_ev = make_unique<Eviscerator>(m_i);
-    m_sb = make_unique<SkillBuilder>();
-
-    m_bhs[BH_MINIMIZE_DANGER].PATH_SPOIL_TIME = 100;
-
-    m_bns_top.pt = {1200, 1200};
-    m_bns_top.time = 2501;
-    m_bns_bottom.pt = {2800, 2800};
-    m_bns_bottom.time = m_bns_top.time;
-
-    //Fill enemy towers list, we know what they is mirrored
-    m_enemy_towers.clear();
-    TowerDesc tds;
-    for (const auto &tower : world.getBuildings()) {
-        if (tower.getFaction() != self.getFaction()) {
-            continue;
-        }
-
-        const double map_size = game.getMapSize();
-
-        tds.x = map_size - tower.getX();
-        tds.y = map_size - tower.getY();
-        tds.r = tower.getRadius();
-        tds.cooldown = tower.getCooldownTicks();
-        tds.rem_cooldown = tower.getRemainingActionCooldownTicks();
-        tds.life = tower.getLife();
-        tds.max_life = tower.getMaxLife();
-        tds.attack_range = tower.getAttackRange();
-        tds.damage = tower.getDamage();
-
-        m_enemy_towers.push_back(tds);
-    }
-
-    return true;
 }
 
 geom::Vec2D MyStrategy::damage_avoid_vector(const Point2D &from) {
@@ -418,7 +394,7 @@ geom::Vec2D MyStrategy::damage_avoid_vector(const Point2D &from) {
         Vec2D cur{len * cos(angle), len * sin(angle)};
         cur.x += from.x;
         cur.y += from.y;
-        if (m_pf->check_no_collision(cur, m_i.s->getRadius())) {
+        if (m_i.ew->check_no_collision(cur, m_i.s->getRadius())) {
             forces[i] = m_danger_map.get_value(cur.x, cur.y);
         }
     }
@@ -456,88 +432,6 @@ geom::Vec2D MyStrategy::damage_avoid_vector(const Point2D &from) {
         best *= len;
     }
     return best;
-}
-
-void MyStrategy::update_shadow_towers(std::list<TowerDesc> &towers,
-                                      const model::World &world,
-                                      const model::Faction my_faction) {
-
-    /*
-     * First decrease cooldown by one
-     */
-    for (auto &shadow : towers) {
-        if (shadow.rem_cooldown > 0) {
-            shadow.rem_cooldown--;
-        }
-    }
-
-    /*
-     * Looks for our towers in building list, maybe we see some of them
-     */
-    std::vector<bool> updated(towers.size(), false);
-    for (const auto &enemy_tower : world.getBuildings()) {
-        if (enemy_tower.getFaction() == my_faction) {
-            continue;
-        }
-        //Search corresponding tower among shadows
-        int idx = 0;
-        for (auto &shadow : towers) {
-            if (enemy_tower.getId() == shadow.id
-                || enemy_tower.getDistanceTo(shadow.x, shadow.y) <= enemy_tower.getRadius()) {
-                //Found, update info
-                shadow.id = enemy_tower.getId();
-                shadow.rem_cooldown = enemy_tower.getRemainingActionCooldownTicks();
-                shadow.life = enemy_tower.getLife();
-                updated[idx] = true;
-            }
-            ++idx;
-        }
-    }
-
-    /*
-     * Check for destroy, if we see place, but don't see tower, it is destroyed
-     */
-    struct VisionRange {
-        VisionRange(double x_, double y_, double r_)
-            : x(x_),
-              y(y_),
-              r(r_) {
-        }
-
-        double x, y, r;
-    };
-    std::vector<VisionRange> team_vision;
-    for (const auto &creep : world.getMinions()) {
-        if (creep.getFaction() != my_faction) {
-            continue;
-        }
-        team_vision.emplace_back(creep.getX(), creep.getY(), creep.getVisionRange());
-    }
-    for (const auto &wizard : world.getWizards()) {
-        if (wizard.getFaction() != my_faction) {
-            continue;
-        }
-        team_vision.emplace_back(wizard.getX(), wizard.getY(), wizard.getVisionRange());
-    }
-    //Don't check buildings, because it cannot see another building
-
-    Vec2D dist{0, 0};
-    for (const auto &vision : team_vision) {
-        int idx = 0;
-        auto it = towers.cbegin();
-        while (it != towers.cend()) {
-            dist.x = it->x - vision.x;
-            dist.y = it->y - vision.y;
-            if (dist.sqr() <= (vision.r * vision.r) && !updated[idx]) {
-                //We should see it, but it not appeared in world.getBuildings, so it is destroyed
-                LOG("Don't see tower: %3lf <= %3lf, %d\n", dist.len(), vision.r, (int) updated[idx]);
-                it = towers.erase(it);
-            } else {
-                ++it;
-            }
-            ++idx;
-        }
-    }
 }
 
 void MyStrategy::update_danger_map() {
@@ -624,7 +518,7 @@ void MyStrategy::update_danger_map() {
         add_unit_damage_fields({wizard.getX(), wizard.getY()}, attack_range, dead_zone_r);
     }
 
-    for (const auto &tower : m_enemy_towers) {
+    for (const auto &tower : m_i.ew->get_hostile_towers()) {
         double attack_range = tower.attack_range + m_i.s->getRadius();
         const AttackUnit enemy{tower.rem_cooldown,
                                tower.cooldown,
@@ -688,30 +582,6 @@ void MyStrategy::visualise_danger_map(const fields::FieldMap &danger, const geom
 
 void MyStrategy::update_bonuses() {
 
-    auto my_faction = m_i.s->getFaction();
-    struct VisionRange {
-        VisionRange(double x_, double y_, double r_)
-            : x(x_),
-              y(y_),
-              r(r_) {
-        }
-
-        double x, y, r;
-    };
-    std::vector<VisionRange> team_vision;
-    for (const auto &creep : m_i.w->getMinions()) {
-        if (creep.getFaction() != my_faction) {
-            continue;
-        }
-        team_vision.emplace_back(creep.getX(), creep.getY(), creep.getVisionRange());
-    }
-    for (const auto &wizard : m_i.w->getWizards()) {
-        if (wizard.getFaction() != my_faction) {
-            continue;
-        }
-        team_vision.emplace_back(wizard.getX(), wizard.getY(), wizard.getVisionRange());
-    }
-
     //Check if bonuses in vision range and exists
     bool bottom_up = false;
     bool top_up = false;
@@ -726,26 +596,19 @@ void MyStrategy::update_bonuses() {
         }
     }
 
-    geom::Vec2D ally;
-    geom::Vec2D dist;
     int bonus_interval = m_i.g->getBonusAppearanceIntervalTicks();
-    for (const auto &ally_vis : team_vision) {
-        ally = {ally_vis.x, ally_vis.y};
-        dist = ally - m_bns_top.pt;
-        if (dist.sqr() <= (ally_vis.r * ally_vis.r) && !top_up && m_bns_top.time == 0) {
-            //In vision but not updated, so it was taken
-            int next_tick = ((m_i.w->getTickIndex() + bonus_interval - 1) / bonus_interval) * bonus_interval;
-            m_bns_top.time = next_tick - m_i.w->getTickIndex() + 2;
-            LOG("Top bonus was taken!\n");
-        }
+    if (m_i.ew->check_in_team_vision(m_bns_top.pt) && !top_up && m_bns_top.time == 0) {
+        //In vision but not updated, so it was taken
+        int next_tick = ((m_i.w->getTickIndex() + bonus_interval - 1) / bonus_interval) * bonus_interval;
+        m_bns_top.time = next_tick - m_i.w->getTickIndex() + 2;
+        LOG("Top bonus was taken!\n");
+    }
 
-        dist = ally - m_bns_bottom.pt;
-        if (dist.sqr() <= (ally_vis.r * ally_vis.r) && !bottom_up && m_bns_bottom.time == 0) {
-            //In vision but not updated, so it was taken
-            int next_tick = ((m_i.w->getTickIndex() + bonus_interval - 1) / bonus_interval) * bonus_interval;
-            m_bns_bottom.time = next_tick - m_i.w->getTickIndex() + 2;
-            LOG("Bottom bonus was taken! next time = %d\n", m_bns_bottom.time);
-        }
+    if (m_i.ew->check_in_team_vision(m_bns_bottom.pt) && !bottom_up && m_bns_bottom.time == 0) {
+        //In vision but not updated, so it was taken
+        int next_tick = ((m_i.w->getTickIndex() + bonus_interval - 1) / bonus_interval) * bonus_interval;
+        m_bns_bottom.time = next_tick - m_i.w->getTickIndex() + 2;
+        LOG("Bottom bonus was taken! next time = %d\n", m_bns_bottom.time);
     }
 
     //Decrease remaining time

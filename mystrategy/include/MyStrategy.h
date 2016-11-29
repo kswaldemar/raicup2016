@@ -40,13 +40,6 @@ public:
 
     bool initialize_strategy(const model::Wizard &self, const model::World &world, const model::Game &game);
 
-    /*
-     * Analyse information about vision and update any tower-related information if possible
-     */
-    static void update_shadow_towers(std::list<TowerDesc> &towers,
-                                     const model::World &world,
-                                     const model::Faction my_faction);
-
     static void visualise_danger_map(const fields::FieldMap& danger, const geom::Point2D &center);
 
     /*
@@ -63,8 +56,6 @@ private:
     std::unique_ptr<PathFinder> m_pf;
     std::unique_ptr<Eviscerator> m_ev;
     std::unique_ptr<SkillBuilder> m_sb;
-    //Enemy towers, to not forget in fog of war
-    std::list<TowerDesc> m_enemy_towers;
     //Danger map
     fields::FieldMap m_danger_map = fields::FieldMap(fields::FieldMap::ADD);
     std::array<MovementHandler, BH_COUNT> m_bhs;

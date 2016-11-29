@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "Vec2D.h"
 #include "model/Building.h"
 
 /**

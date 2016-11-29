@@ -313,12 +313,6 @@ Eviscerator::DestroyDesc Eviscerator::destroy(model::Move &move) {
     return {m_target->unit, min_range};
 }
 
-geom::Vec2D Eviscerator::apply_enemy_attract_field(const model::Wizard &me) {
-    assert(m_attract_field);
-    //return m_attract_field->apply_force(me.getX(), me.getY());
-    return {0, 0};
-}
-
 bool Eviscerator::tower_maybe_attack_me(const TowerDesc &tower) {
     std::vector<const model::LivingUnit*> maybe_targets;
     geom::Vec2D dist;
@@ -361,10 +355,6 @@ bool Eviscerator::tower_maybe_attack_me(const TowerDesc &tower) {
         return m_i->s->getLife() == case2_hp;
     }
     return true;
-}
-
-const std::vector<EnemyDesc> &Eviscerator::get_enemies() const {
-    return m_enemies;
 }
 
 bool Eviscerator::can_shoot_to_target() const {

@@ -192,29 +192,6 @@ void PathFinder::move_along(const geom::Vec2D &dir, model::Move &move, bool hold
     }
 }
 
-bool PathFinder::check_no_collision(const Point2D &pt, double radius) const {
-    const bool wall = pt.x <= radius || pt.x >= m_i->g->getMapSize() - radius
-                      || pt.y <= radius || pt.y >= m_i->g->getMapSize() - radius;
-    if (wall) {
-        return false;
-    }
-    double sqrradius;
-    geom::Vec2D dist;
-    for (const auto &obs : m_obstacles) {
-        sqrradius = radius + obs->getRadius();
-        sqrradius = sqrradius * sqrradius;
-        dist.x = obs->getX() - pt.x;
-        dist.y = obs->getY() - pt.y;
-        if (dist.sqr() <= sqrradius) {
-            VISUAL(fillCircle(pt.x, pt.y, 3, 0xff9933));
-            return false;
-        }
-    }
-    //VISUAL(fillCircle(pt.x, pt.y, 3, 0x33cc33));
-    return true;
-
-}
-
 std::list<geom::Point2D> PathFinder::find_way(const geom::Point2D &to, double radius) {
     const double ex_r = m_i->s->getRadius() + 0.1;
 
@@ -282,7 +259,10 @@ std::list<geom::Point2D> PathFinder::find_way(const geom::Point2D &to, double ra
         }
 
         Point2D wnext = cell_to_world(next);
-        if (closed[next.x][next.y] || !is_correct_cell(next, initial) || (!first && !check_no_collision(wnext, ex_r))) {
+        if (closed[next.x][next.y]
+            || !is_correct_cell(next, initial)
+            || (!first && !m_i->ew->check_no_collision(wnext, ex_r))) {
+
             continue;
         }
         first = false;

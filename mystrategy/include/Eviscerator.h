@@ -71,11 +71,7 @@ public:
 
     DestroyDesc destroy(model::Move &move);
 
-    geom::Vec2D apply_enemy_attract_field(const model::Wizard &me);
-
     bool tower_maybe_attack_me(const TowerDesc &tower);
-
-    const std::vector<EnemyDesc> &get_enemies() const;
 
     bool can_shoot_to_target() const;
 private:
