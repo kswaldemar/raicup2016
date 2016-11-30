@@ -50,19 +50,19 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         hold_time = 0;
     }
     const bool not_moved = hold_time >= 3;
-    if (not_moved) {
-        LOG("Tick %d: Not moved in last tick - spd (%3.1lf, %3.1lf)\n",
-            world.getTickIndex(),
-            self.getSpeedX(),
-            self.getSpeedY());
-    }
+    //if (not_moved) {
+    //    LOG("Tick %d: Not moved in last tick - spd (%3.1lf, %3.1lf)\n",
+    //        world.getTickIndex(),
+    //        self.getSpeedX(),
+    //        self.getSpeedY());
+    //}
 
     const Point2D me{self.getX(), self.getY()};
 
     //Pre actions
     VISUAL(beginPre());
 
-    visualise_danger_map(m_danger_map, me);
+    //visualise_danger_map(m_danger_map, me);
 
     VISUAL(endPre());
 
@@ -211,6 +211,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
 
 
         auto wp_prev = m_pf->get_previous_waypoint();
+        VISUAL(circle(wp_prev.x, wp_prev.y, PathFinder::WAYPOINT_RADIUS, 0x002211));
         m_danger_map.add_field(
             std::make_unique<fields::LinearField>(
                 wp_prev, 0, 500, -20

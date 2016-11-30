@@ -38,10 +38,6 @@ void Eviscerator::update_info(const InfoPack &info) {
             aggresive_neutral = std::abs(i.getSpeedX()) + std::abs(i.getSpeedY()) > 0
                                 || i.getRemainingActionCooldownTicks() > 0
                                 || i.getLife() < i.getMaxLife();
-            if (aggresive_neutral) {
-                LOG("Neutral aggresive! %lf, %d, %d\n", std::abs(i.getSpeedX()) + std::abs(i.getSpeedY()),
-                    i.getRemainingActionCooldownTicks(), i.getLife());
-            }
         }
         if (aggresive_neutral || (i.getFaction() != my_faction && i.getFaction() != model::FACTION_NEUTRAL)) {
             if (i.getType() == model::MINION_FETISH_BLOWDART) {

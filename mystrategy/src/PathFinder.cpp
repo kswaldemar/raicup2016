@@ -16,120 +16,237 @@ using geom::Point2D;
 
 PathFinder::PathFinder(const InfoPack &info) {
     m_i = &info;
-
     const double map_size = m_i->g->getMapSize();
-
-    static const std::vector<Point2D> middle_wp = {
-        {600,  map_size - 600},
-        {1000, map_size - 1000},
-        {1400, map_size - 1400},
-        {1800, map_size - 1800},
-        {2200, map_size - 2200},
-        {2600, map_size - 2600},
-        {3000, map_size - 3000},
-        {3300, map_size - 3300},
-        {3600, map_size - 3600},
-    };
-
-    static const std::vector<Point2D> top_wp = {
-        {200.0,  map_size - 600.0},
-        {200.0,  map_size - 1000.0},
-        {200.0,  map_size - 1400.0},
-        {200.0,  map_size - 1800.0},
-        {200.0,  map_size - 2200.0},
-        {200.0,  map_size - 2600.0},
-        {200.0,  map_size - 3000.0},
-        {500,    500.0},
-        {600.0,  200.0},
-        {1000.0, 200.0},
-        {1400.0, 200.0},
-        {1800.0, 200.0},
-        {2200.0, 200.0},
-        {2600.0, 200.0},
-        {3000.0, 200.0},
-        {3600.0, 400.0}
-    };
-
-    static const std::vector<Point2D> bottom_wp = {
-        {600.0,            map_size - 200.0},
-        {1000.0,           map_size - 200.0},
-        {1400.0,           map_size - 200.0},
-        {1800.0,           map_size - 200.0},
-        {2200.0,           map_size - 200.0},
-        {2600.0,           map_size - 200.0},
-        {3000.0,           map_size - 200.0},
-        {map_size - 500,   map_size - 500.0},
-        {map_size - 200.0, 3000.0},
-        {map_size - 200.0, 2600.0},
-        {map_size - 200.0, 2200.0},
-        {map_size - 200.0, 1800.0},
-        {map_size - 200.0, 1400.0},
-        {map_size - 200.0, 1000.0},
-        {map_size - 200.0, 600.0},
-        {3600.0,           400.0}
-    };
-
     switch (m_i->s->getId()) {
         case 1:
         case 2:
         case 6:
-        case 7:m_waypoints = &top_wp;
+        case 7:m_current_lane = model::LANE_TOP;
             break;
         case 3:
-        case 8:m_waypoints = &middle_wp;
+        case 8:m_current_lane = model::LANE_MIDDLE;
             break;
         case 4:
         case 5:
         case 9:
-        case 10:m_waypoints = &bottom_wp;
+        case 10:m_current_lane = model::LANE_BOTTOM;
             break;
         default:break;
     }
-    assert(m_waypoints);
-    m_next_wp = m_waypoints->cbegin();
-    m_last_wp = m_waypoints->cbegin();
+
+    m_last_wp[model::LANE_TOP] = {200, map_size - 800};
+    m_last_wp[model::LANE_MIDDLE] = {900 + WAYPOINT_RADIUS, map_size - 900 - WAYPOINT_RADIUS};
+    m_last_wp[model::LANE_BOTTOM] = {800, map_size - 200};
 }
 
 void PathFinder::update_info(const InfoPack &info, const fields::FieldMap &danger_map) {
     m_i = &info;
     m_danger_map = &danger_map;
-    //Remember each obstacle
-    m_obstacles.clear();
-    for (const auto &i : m_i->w->getTrees()) {
-        m_obstacles.push_back(&i);
+
+    //TODO: Calculate front as the closest enemy on lane
+
+    const Point2D me{m_i->s->getX(), m_i->s->getY()};
+    switch (m_current_lane) {
+        case model::LANE_TOP:
+             top_lane_projection(me, 0, &m_lane_push_status[model::LANE_TOP]);
+            break;
+        case model::LANE_MIDDLE:
+            middle_lane_projection(me, 0, &m_lane_push_status[model::LANE_MIDDLE]);
+            break;
+        case model::LANE_BOTTOM:
+            bottom_lane_projection(me, 0, &m_lane_push_status[model::LANE_BOTTOM]);
+            break;
+        default: break;
     }
-    for (const auto &i : m_i->w->getBuildings()) {
-        m_obstacles.push_back(&i);
-    }
-    for (const auto &i : m_i->w->getWizards()) {
-        if (i.isMe()) {
-            continue;
+
+    //Calculate battle front for each lane
+    std::array<double, model::_LANE_COUNT_> bfront;
+    bfront.fill(1);
+    for (const auto &i : m_i->ew->get_hostile_creeps()) {
+        const geom::Point2D pt{i->getX(), i->getY()};
+        auto lane = get_lane_by_coord(pt);
+        double front = 1;
+        switch (lane) {
+            case model::LANE_TOP:
+                top_lane_projection(pt, 0, &front);
+                break;
+            case model::LANE_MIDDLE:
+                middle_lane_projection(pt, 0, &front);
+                break;
+            case model::LANE_BOTTOM:
+                bottom_lane_projection(pt, 0, &front);
+                break;
+            default: break;
         }
-        m_obstacles.push_back(&i);
+        if (lane != model::_LANE_UNKNOWN_) {
+            bfront[lane] = std::min(bfront[lane], front);
+        }
     }
-    for (const auto &i : m_i->w->getMinions()) {
-        m_obstacles.push_back(&i);
+    for (const auto &i : m_i->ew->get_hostile_towers()) {
+        const geom::Point2D pt{i.x, i.y};
+        auto lane = get_lane_by_coord(pt);
+        double front = 1;
+        int shift = static_cast<int>(-i.attack_range);
+        switch (lane) {
+            case model::LANE_TOP:
+                top_lane_projection(pt, shift, &front);
+                break;
+            case model::LANE_MIDDLE:
+                middle_lane_projection(pt, shift, &front);
+                break;
+            case model::LANE_BOTTOM:
+                bottom_lane_projection(pt, shift, &front);
+                break;
+            default: break;
+        }
+        if (lane != model::_LANE_UNKNOWN_) {
+            bfront[lane] = std::min(bfront[lane], front);
+        }
+    }
+    m_lane_push_status = bfront;
+
+    if (m_i->w->getTickIndex() % 50 == 0) {
+        LOG("Lane push status = %3.3lf\n", m_lane_push_status[m_current_lane]);
     }
 }
 
 Point2D PathFinder::get_next_waypoint() {
-    if (m_i->s->getDistanceTo(m_next_wp->x, m_next_wp->y) <= WAYPOINT_RADIUS) {
-        m_last_wp = m_next_wp++;
-        if (m_next_wp == m_waypoints->cend()) {
-            --m_next_wp;
+    const Point2D me{m_i->s->getX(), m_i->s->getY()};
+
+    const auto lane = get_lane_by_coord(me);
+
+    if (lane != m_current_lane) {
+        //We are too far, return last point in lane
+        //TODO: Update last_wp to battle front here
+    } else {
+        //Update last wp
+        double battle_front = 0;
+        switch (lane) {
+            case model::LANE_TOP:
+                m_last_wp[lane] = top_lane_projection(me, WAYPOINT_RADIUS + WAYPOINT_SHIFT, &battle_front);
+                break;
+            case model::LANE_MIDDLE:
+                m_last_wp[lane] = middle_lane_projection(me, WAYPOINT_RADIUS + WAYPOINT_SHIFT, &battle_front);
+                break;
+            case model::LANE_BOTTOM:
+                m_last_wp[lane] = bottom_lane_projection(me, WAYPOINT_RADIUS + WAYPOINT_SHIFT, &battle_front);
+                break;
+            default: break;
         }
     }
-    return *m_next_wp;
+
+    return m_last_wp[m_current_lane];
 }
 
 Point2D PathFinder::get_previous_waypoint() {
-    if (m_i->s->getDistanceTo(m_last_wp->x, m_last_wp->y) <= WAYPOINT_RADIUS) {
-        m_next_wp = m_last_wp;
-        if (m_last_wp != m_waypoints->cbegin()) {
-            m_last_wp--;
-        }
+    const Point2D me{m_i->s->getX(), m_i->s->getY()};
+    const auto lane = get_lane_by_coord(me);
+
+    //Dynamic wp as retreat point
+    switch (lane) {
+        case model::LANE_TOP:
+            return top_lane_projection(me, -WAYPOINT_RADIUS - WAYPOINT_SHIFT);
+        case model::LANE_MIDDLE:
+            return middle_lane_projection(me, -WAYPOINT_RADIUS - WAYPOINT_SHIFT);
+        case model::LANE_BOTTOM:
+            return bottom_lane_projection(me, -WAYPOINT_RADIUS - WAYPOINT_SHIFT);
+        default: break;
     }
-    return *m_last_wp;
+
+    //We are in forest or between lanes
+    return {0, 0};
+}
+
+model::LaneType PathFinder::get_lane_by_coord(Point2D pt) const {
+
+    const double ym_up = -pt.x + 3200;
+    const double ym_down = -pt.x + 4800;
+    const double ym_st = pt.x + 2400;
+    if (pt.y >= ym_up && pt.y <= ym_down && pt.y <= ym_st) {
+        return model::LANE_MIDDLE;
+    }
+
+
+    if (   (pt.x <= 600  + WAYPOINT_RADIUS && pt.y <= 3200 + WAYPOINT_RADIUS)
+        || (pt.x <= 800  + WAYPOINT_RADIUS && pt.y <= 800 + WAYPOINT_RADIUS)
+        || (pt.x <= 3600 - WAYPOINT_RADIUS && pt.y <= 600 + WAYPOINT_RADIUS)) {
+        return model::LANE_TOP;
+    }
+
+    if (   (pt.x >= 800  - WAYPOINT_RADIUS && pt.y >= 3400 - WAYPOINT_RADIUS)
+        || (pt.x >= 3200  - WAYPOINT_RADIUS && pt.y >= 3200 - WAYPOINT_RADIUS)
+        || (pt.x >= 3400 - WAYPOINT_RADIUS && pt.y <= 3200 + WAYPOINT_RADIUS)) {
+        return model::LANE_BOTTOM;
+    }
+
+
+
+    return model::_LANE_UNKNOWN_;
+}
+
+geom::Point2D PathFinder::top_lane_projection(const geom::Point2D &me, int shift, double *battle_front) {
+    static constexpr double x1 = 200;
+    static constexpr double x2 = 800;
+    static constexpr double x3 = 3600;
+    static constexpr double y0 = 3200;
+    static constexpr double y1 = 800;
+    static constexpr double y2 = 200;
+    static const double sa = sin(pi / 4);
+    static const double ca = sa;
+    static constexpr double l1 = y0 - y1;
+    static const geom::Vec2D s2 = geom::normalize({x2 - x1, y2 - y1});
+    static const double l2 = geom::Vec2D(x2 - x1, y2 - y1).len();
+    static const double l3 = x3 - x2;
+
+    double len = 0;
+    if (me.y >= y1) {
+        len = y0 - me.y;
+    } else if (me.x <= x2) {
+        const geom::Vec2D cur = {me.x - x1, me.y - y1};
+        const double c = cur * s2;
+        len = l1 + c;
+    } else {
+        len = l1 + l2 + (me.x - x2);
+    }
+
+    len += shift;
+
+    if (battle_front) {
+        *battle_front = len / (l1 + l2 + l3);
+    }
+
+    if (len <= l1) {
+        return {x1, y0 - len};
+    } else if (len <= l1 + l2) {
+        const double dl = len - l1;
+        return {x1 + dl * sa, y1 - dl * ca};
+    } else {
+        const double dl = len - l2 - l1;
+        return {x2 + dl, y2};
+    }
+}
+
+geom::Point2D PathFinder::middle_lane_projection(const geom::Point2D &me, int shift, double *battle_front) {
+    static const geom::Vec2D mid_line = geom::normalize({4000, -4000});
+    const geom::Vec2D cur = {me.x, me.y - 4000};
+    const double c = cur * mid_line;
+
+    static const double map_diag = 4000 * sqrt(2);
+    if (battle_front) {
+        *battle_front = c / map_diag;
+    }
+
+    geom::Vec2D res_pt = mid_line * (c + shift);
+    res_pt.y += 4000;
+    return res_pt;
+}
+
+geom::Point2D PathFinder::bottom_lane_projection(const geom::Point2D &me, int shift, double *battle_front) {
+    auto ret = top_lane_projection({4000 - me.y, 4000 - me.x}, shift, battle_front);
+    std::swap(ret.x, ret.y);
+    ret.x = 4000 - ret.x;
+    ret.y = 4000 - ret.y;
+    return ret;
 }
 
 void PathFinder::move_along(const geom::Vec2D &dir, model::Move &move, bool hold_face) {
@@ -357,19 +474,5 @@ bool PathFinder::update_cost(const PathFinder::CellCoord &pt_from, const PathFin
 }
 
 bool PathFinder::bonuses_is_under_control() const {
-    long wp_idx = m_last_wp - m_waypoints->cbegin();
-    switch (m_i->s->getId()) {
-        case 1:
-        case 2:
-        case 6:
-        case 7:return wp_idx >= 5;
-        case 3:
-        case 8:return wp_idx >= 2;
-        case 4:
-        case 5:
-        case 9:
-        case 10:return wp_idx >= 5;
-            break;
-        default:break;
-    }
+    return m_lane_push_status[m_current_lane] > 0.45;
 }

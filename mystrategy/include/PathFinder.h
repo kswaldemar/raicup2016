@@ -16,7 +16,8 @@
  */
 class PathFinder {
 public:
-    static constexpr int WAYPOINT_RADIUS = 200;
+    static constexpr int WAYPOINT_RADIUS = 100;
+    static constexpr int WAYPOINT_SHIFT = 200;
     //Pathfind grid step
     static constexpr int GRID_SIZE = 5;
     //Hardcoded
@@ -68,15 +69,25 @@ public:
 
     bool bonuses_is_under_control() const;
 
+    geom::Point2D top_lane_projection(const geom::Point2D &me, int shift, double *battle_front = nullptr);
+
+    geom::Point2D middle_lane_projection(const geom::Point2D &me, int shift, double *battle_front = nullptr);
+
+    geom::Point2D bottom_lane_projection(const geom::Point2D &me, int shift, double *battle_front = nullptr);
+
+    model::LaneType get_lane_by_coord(geom::Point2D pt) const;
+
 private:
 
     bool is_correct_cell(const CellCoord &tocheck, const CellCoord &initial);
 
-    const InfoPack *m_i;
-    const std::vector<geom::Point2D> *m_waypoints = nullptr;
-    std::vector<geom::Point2D>::const_iterator m_next_wp, m_last_wp;
-    std::array<std::array<Cell, CELL_COUNT>, CELL_COUNT> m_map;
-    const fields::FieldMap *m_danger_map;
-    std::vector<const model::CircularUnit *> m_obstacles;
     bool update_cost(const CellCoord &pt_from, const CellCoord &pt_to);
+
+    const InfoPack *m_i;
+    const fields::FieldMap *m_danger_map;
+    std::array<std::array<Cell, CELL_COUNT>, CELL_COUNT> m_map;
+    std::array<geom::Point2D, model::_LANE_COUNT_> m_last_wp;
+    std::array<double, model::_LANE_COUNT_> m_lane_push_status;
+    model::LaneType m_current_lane = model::_LANE_UNKNOWN_;
+
 };
