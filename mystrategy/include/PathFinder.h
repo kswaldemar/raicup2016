@@ -19,7 +19,7 @@ public:
     static constexpr int WAYPOINT_RADIUS = 100;
     static constexpr int WAYPOINT_SHIFT = 200;
     //Pathfind grid step
-    static constexpr int GRID_SIZE = 5;
+    static constexpr int GRID_SIZE = 10;
     //Hardcoded
     static constexpr int WORLD_SIZE = 4000;
     static constexpr int CELL_COUNT = (WORLD_SIZE + GRID_SIZE - 1)/ GRID_SIZE;

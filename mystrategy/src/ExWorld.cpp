@@ -2,9 +2,10 @@
 // Created by valdemar on 29.11.16.
 //
 
-#include <Logger.h>
-#include <model/Game.h>
 #include "ExWorld.h"
+#include "Logger.h"
+#include "model/Game.h"
+#include <cassert>
 
 using namespace model;
 
@@ -33,6 +34,53 @@ ExWorld::ExWorld(const model::World &world, const model::Game &game) : m_map_siz
 
         m_shadow_towers.push_back(tds);
     }
+
+
+    //Calculate wizards speed factor
+    for (const auto &wizard : world.getWizards()) {
+        double factor = 1.0;
+
+        //Check for haste
+        const auto &statuses = wizard.getStatuses();
+        for (const auto &st : statuses) {
+            if (st.getType() == model::STATUS_HASTENED) {
+                factor += game.getHastenedMovementBonusFactor();
+                break;
+            }
+        }
+
+        //Passive skills
+        for (const auto &skill : wizard.getSkills()) {
+            if (skill == model::SKILL_MOVEMENT_BONUS_FACTOR_PASSIVE_1
+                || skill == model::SKILL_MOVEMENT_BONUS_FACTOR_PASSIVE_2) {
+                factor += game.getMovementBonusFactorPerSkillLevel();
+            }
+        }
+
+        //Allies aura
+        int max_aura = 0;
+        for (const auto &ally : world.getWizards()) {
+            if (ally.getFaction() != wizard.getFaction()) {
+                continue;
+            }
+            for (const auto &skill : ally.getSkills()) {
+                if (ally.getDistanceTo(wizard) <= game.getAuraSkillRange()
+                    && (skill == model::SKILL_MOVEMENT_BONUS_FACTOR_AURA_1
+                        || skill == model::SKILL_MOVEMENT_BONUS_FACTOR_AURA_2)) {
+
+                    max_aura = std::max<int>(model::SKILL_MOVEMENT_BONUS_FACTOR_AURA_1, max_aura);
+                }
+            }
+        }
+        if (max_aura > 0) {
+            max_aura -= model::SKILL_MOVEMENT_BONUS_FACTOR_AURA_1;
+            factor += game.getMovementBonusFactorPerSkillLevel() * (max_aura + 1);
+        }
+
+        assert(wizard.getId() >= 0 && wizard.getId() < 10);
+        m_wizard_speed_factor[wizard.getId()] = factor;
+    }
+
 }
 
 void ExWorld::update_world(const model::World &world) {
@@ -44,7 +92,8 @@ void ExWorld::update_world(const model::World &world) {
         const bool active = std::abs(i.getSpeedX()) + std::abs(i.getSpeedY()) > 0
                             || i.getRemainingActionCooldownTicks() > 0
                             || i.getLife() < i.getMaxLife();
-        if (i.getFaction() != my_faction || (i.getFaction() == FACTION_NEUTRAL && active)) {
+        if ((i.getFaction() != my_faction && i.getFaction() != FACTION_NEUTRAL)
+            || (i.getFaction() == FACTION_NEUTRAL && active)) {
             m_en_creeps.push_back(&i);
         }
     }
@@ -194,4 +243,8 @@ bool ExWorld::check_in_team_vision(const geom::Point2D &pt) const {
         }
     }
     return false;
+}
+
+double ExWorld::get_wizard_movement_factor(const Wizard &who) const {
+    return m_wizard_speed_factor[who.getId()];
 }

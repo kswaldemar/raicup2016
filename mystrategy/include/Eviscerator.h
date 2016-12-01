@@ -15,13 +15,6 @@
 
 #include <memory>
 
-//struct EnemyInfo {
-//public:
-//
-//    geom::Point2D pos;
-//
-//};
-
 struct EnemyDesc {
     enum class Type {
         MINION_ORC,
@@ -54,11 +47,6 @@ public:
      * Should be called at each tick start
      */
     void update_info(const InfoPack &info);
-
-    int get_myself_death_time(const model::Wizard &me, const model::Minion &enemy);
-    int get_myself_death_time(const model::Wizard &me, const model::Building &enemy);
-    int get_myself_death_time(const model::Wizard &me, const model::Wizard &enemy);
-    int get_myself_death_time(const model::Wizard &me, const TowerDesc &enemy);
 
     static double calc_dead_zone(const RunawayUnit &me, const AttackUnit &enemy);
 

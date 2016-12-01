@@ -22,7 +22,6 @@ bool eps_equal(double d1, double d2) {
     return diff < EPS && diff > -EPS;
 }
 
-
 MyStrategy::MyStrategy() {
 }
 
@@ -62,7 +61,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     //Pre actions
     VISUAL(beginPre());
 
-    //visualise_danger_map(m_danger_map, me);
+    visualise_danger_map(m_danger_map, me);
 
     VISUAL(endPre());
 
@@ -214,7 +213,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         VISUAL(circle(wp_prev.x, wp_prev.y, PathFinder::WAYPOINT_RADIUS, 0x002211));
         m_danger_map.add_field(
             std::make_unique<fields::LinearField>(
-                wp_prev, 0, 500, -20
+                wp_prev, 0, 500, -13
             )
         );
 
