@@ -35,55 +35,9 @@ ExWorld::ExWorld(const model::World &world, const model::Game &game) : m_map_siz
         m_shadow_towers.push_back(tds);
     }
 
-
-    //Calculate wizards speed factor
-    for (const auto &wizard : world.getWizards()) {
-        double factor = 1.0;
-
-        //Check for haste
-        const auto &statuses = wizard.getStatuses();
-        for (const auto &st : statuses) {
-            if (st.getType() == model::STATUS_HASTENED) {
-                factor += game.getHastenedMovementBonusFactor();
-                break;
-            }
-        }
-
-        //Passive skills
-        for (const auto &skill : wizard.getSkills()) {
-            if (skill == model::SKILL_MOVEMENT_BONUS_FACTOR_PASSIVE_1
-                || skill == model::SKILL_MOVEMENT_BONUS_FACTOR_PASSIVE_2) {
-                factor += game.getMovementBonusFactorPerSkillLevel();
-            }
-        }
-
-        //Allies aura
-        int max_aura = 0;
-        for (const auto &ally : world.getWizards()) {
-            if (ally.getFaction() != wizard.getFaction()) {
-                continue;
-            }
-            for (const auto &skill : ally.getSkills()) {
-                if (ally.getDistanceTo(wizard) <= game.getAuraSkillRange()
-                    && (skill == model::SKILL_MOVEMENT_BONUS_FACTOR_AURA_1
-                        || skill == model::SKILL_MOVEMENT_BONUS_FACTOR_AURA_2)) {
-
-                    max_aura = std::max<int>(model::SKILL_MOVEMENT_BONUS_FACTOR_AURA_1, max_aura);
-                }
-            }
-        }
-        if (max_aura > 0) {
-            max_aura -= model::SKILL_MOVEMENT_BONUS_FACTOR_AURA_1;
-            factor += game.getMovementBonusFactorPerSkillLevel() * (max_aura + 1);
-        }
-
-        assert(wizard.getId() >= 0 && wizard.getId() < 10);
-        m_wizard_speed_factor[wizard.getId()] = factor;
-    }
-
 }
 
-void ExWorld::update_world(const model::World &world) {
+void ExWorld::update_world(const model::World &world, const model::Game &game) {
     const int my_faction = world.getMyPlayer().getFaction();
 
     //Update hostile creeps
@@ -138,6 +92,52 @@ void ExWorld::update_world(const model::World &world) {
 
     update_shadow_towers(world);
 
+
+    //Calculate wizards speed factor
+    for (const auto &wizard : world.getWizards()) {
+        double factor = 1.0;
+
+        //Check for haste
+        const auto &statuses = wizard.getStatuses();
+        for (const auto &st : statuses) {
+            if (st.getType() == model::STATUS_HASTENED) {
+                factor += game.getHastenedMovementBonusFactor();
+                break;
+            }
+        }
+
+        //Passive skills
+        for (const auto &skill : wizard.getSkills()) {
+            if (skill == model::SKILL_MOVEMENT_BONUS_FACTOR_PASSIVE_1
+                || skill == model::SKILL_MOVEMENT_BONUS_FACTOR_PASSIVE_2) {
+                factor += game.getMovementBonusFactorPerSkillLevel();
+            }
+        }
+
+        //Allies aura
+        int max_aura = 0;
+        for (const auto &ally : world.getWizards()) {
+            if (ally.getFaction() != wizard.getFaction()) {
+                continue;
+            }
+            for (const auto &skill : ally.getSkills()) {
+                if (ally.getDistanceTo(wizard) <= game.getAuraSkillRange()
+                    && (skill == model::SKILL_MOVEMENT_BONUS_FACTOR_AURA_1
+                        || skill == model::SKILL_MOVEMENT_BONUS_FACTOR_AURA_2)) {
+
+                    max_aura = std::max<int>(model::SKILL_MOVEMENT_BONUS_FACTOR_AURA_1, max_aura);
+                }
+            }
+        }
+        if (max_aura > 0) {
+            max_aura -= model::SKILL_MOVEMENT_BONUS_FACTOR_AURA_1;
+            factor += game.getMovementBonusFactorPerSkillLevel() * (max_aura + 1);
+        }
+
+        assert(wizard.getId() > 0 && wizard.getId() <= 10);
+        m_wizard_speed_factor[wizard.getId()] = factor;
+    }
+
 }
 
 void ExWorld::update_shadow_towers(const World &world) {
@@ -185,7 +185,7 @@ void ExWorld::update_shadow_towers(const World &world) {
         while (it != m_shadow_towers.cend()) {
             dist.x = it->x - unit_fov.first.x;
             dist.y = it->y - unit_fov.first.y;
-            if (dist.sqr() <= (unit_fov.second * unit_fov.second) && !updated[idx]) {
+            if (dist.sqr() < (unit_fov.second * unit_fov.second) && !updated[idx]) {
                 //We should see it, but it not appeared in world.getBuildings, so it is destroyed
                 LOG("Don't see tower: %3lf <= %3lf, %d\n", dist.len(), unit_fov.second, (int) updated[idx]);
                 it = m_shadow_towers.erase(it);

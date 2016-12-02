@@ -6,7 +6,7 @@
 
 namespace config {
 
-const double ENEMY_DETECT_RANGE = 600;
+const double ENEMY_DETECT_RANGE = 700;
 
 const double ATTACK_THRESH = 55;
 const double SCOUT_THRESH = 50;

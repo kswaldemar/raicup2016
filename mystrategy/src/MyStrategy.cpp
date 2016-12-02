@@ -3,7 +3,6 @@
 #include "MyStrategy.h"
 #include "PathFinder.h"
 #include "Logger.h"
-#include "CustomField.h"
 #include "VisualDebug.h"
 
 #include <cassert>
@@ -89,6 +88,10 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     Vec2D dir;
     double danger_level = m_danger_map.get_value(me);
 
+    fields::FieldMap navigation(fields::FieldMap::MIN);
+    const double NAV_POTENTIAL = -25;
+    int nav_radius = PathFinder::GRID_SIZE * 2;
+
     int best_enemy = m_ev->choose_enemy();
     const bool have_target = best_enemy > 0;
     if (danger_level <= config::ATTACK_THRESH && current_action == BH_COUNT) {
@@ -103,12 +106,14 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
                 m_bhs[BH_ATTACK].update_target(*description.unit);
                 if (m_bhs[BH_ATTACK].is_path_spoiled()) {
                     m_bhs[BH_ATTACK].load_path(
-                        m_pf->find_way({description.unit->getX(), description.unit->getY()}, description.att_range),
+                        m_pf->find_way({description.unit->getX(), description.unit->getY()}, description.att_range - PathFinder::GRID_SIZE),
                         *description.unit
                     );
                 }
                 dir = m_bhs[BH_ATTACK].get_next_direction(self);
-                m_pf->move_along(dir, move, true);
+                navigation.add_field(std::make_unique<fields::LinearField>(
+                    me + dir, 0, nav_radius, NAV_POTENTIAL
+                ));
             } else {
                 if (self.getDistanceTo(*description.unit) <= description.att_range) {
                     current_action = BH_MINIMIZE_DANGER;
@@ -135,8 +140,8 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             }
 
             const double max_dist = 1600;
-            double td = shift_top.len();
-            double tb = shift_bottom.len();
+            double td = shift_top.len() + game.getBonusRadius();
+            double tb = shift_bottom.len() + game.getBonusRadius();
 
             bool want_bottom = tb <= max_dist && static_cast<int>(tb / my_speed) >= m_bns_bottom.time;
             bool want_top = td <= max_dist && static_cast<int>(td / my_speed) >= m_bns_top.time;
@@ -198,10 +203,11 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             );
         }
         dir = m_bhs[BH_SCOUT].get_next_direction(self);
+        navigation.add_field(std::make_unique<fields::LinearField>(
+            me + dir, 0, nav_radius, NAV_POTENTIAL
+        ));
+
         VISUAL(line(self.getX(), self.getY(), self.getX() + dir.x, self.getY() + dir.y, 0xFF0000));
-        if (dir.len() > EPS) {
-            m_pf->move_along(dir, move, false);
-        }
     }
 
     if (current_action == BH_COUNT || current_action == BH_MINIMIZE_DANGER) {
@@ -231,35 +237,28 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
 
         if (!m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled()) {
             dir = m_bhs[BH_MINIMIZE_DANGER].get_next_direction(self);
-        } else {
-            dir = damage_avoid_vector(from);
+            navigation.add_field(std::make_unique<fields::LinearField>(
+                me + dir, 0, nav_radius, NAV_POTENTIAL - 5
+            ));
         }
+    }
+
+    dir = potential_vector(me, {&m_danger_map, &navigation});
+    if (dir.len() > EPS) {
         m_pf->move_along(dir, move, have_target);
     }
 
-    //If we stuck in the tree - destroy it
-    if (not_moved) {
-        double min_dist = 1e9;
-        double min_angle = pi;
-        const model::Tree *target = nullptr;
-        for (const auto &tree : world.getTrees()) {
-            double ang = std::abs(self.getAngleTo(tree));
-            double dist = self.getDistanceTo(tree);
-            if (dist < min_dist || (eps_equal(dist, min_dist) && ang < min_angle)) {
-                min_dist = dist;
-                min_angle = ang;
-                target = &tree;
-            }
-        }
-        if (target && min_dist <= target->getRadius() + game.getStaffRange()) {
-            double ang = self.getAngleTo(*target);
-            if (!have_target && (std::abs(ang) >= game.getStaffSector() / 2.0)) {
-                move.setTurn(ang);
-            }
-            if (std::abs(ang) < game.getStaffSector() / 2.0) {
-                move.setAction(ACTION_STAFF);
-            }
-        }
+    if (!m_i.ew->check_no_collision(me + dir, self.getRadius())) {
+        auto dest = me + dir;
+        LOG("ERROR: Check no collision failed. Destination (%3.1lf, %3.1lf) will lead to collision. "
+                "Vector (%3.1lf, %3.1lf); Me (%3.1lf, %3.1lf); Angle %3.5lf\n",
+            dest.x,
+            dest.y,
+            dir.x,
+            dir.y,
+            me.x,
+            me.y,
+            self.getAngle());
     }
 
     //Try to destroy enemy, while going to another targets
@@ -354,7 +353,7 @@ void MyStrategy::each_tick_update(const model::Wizard &self, const model::World 
     }
     last_tick = cur_tick;
 
-    m_i.ew->update_world(world);
+    m_i.ew->update_world(world, game);
 
     //Calculate danger map
     update_danger_map();
@@ -370,68 +369,91 @@ void MyStrategy::each_tick_update(const model::Wizard &self, const model::World 
     }
 }
 
-geom::Vec2D MyStrategy::damage_avoid_vector(const Point2D &from) {
-    constexpr double ANGLE_STEP = 5;
-    constexpr int all_steps = static_cast<int>((360 + ANGLE_STEP - 1) / ANGLE_STEP);
+geom::Vec2D MyStrategy::potential_vector(const Point2D &pt, const std::vector<const fields::FieldMap*> &fmaps) const {
+    constexpr double ANGLE_STEP = 1;
+    constexpr int all_steps = static_cast<int>((360 + ANGLE_STEP) / ANGLE_STEP);
     std::array<double, all_steps + 1> forces;
-    forces.fill(1e9);
+    forces.fill(0);
 
-    Vec2D fwd{m_i.g->getWizardForwardSpeed(), m_i.g->getWizardStrafeSpeed()};
-    double len = fwd.len();
-
-    Vec2D back{-m_i.g->getWizardBackwardSpeed(), m_i.g->getWizardStrafeSpeed()};
-    double len2 = back.len();
-
-
-    const int steps = static_cast<int>(360.0 / ANGLE_STEP);
-    for (int i = 0; i <= steps; ++i) {
-        double angle = deg_to_rad(i * ANGLE_STEP);
-
-        if (angle > pi) {
-            len = len2;
-        }
-
-        Vec2D cur{len * cos(angle), len * sin(angle)};
-        cur.x += from.x;
-        cur.y += from.y;
-        if (m_i.ew->check_no_collision(cur, m_i.s->getRadius())) {
-            forces[i] = m_danger_map.get_value(cur.x, cur.y);
+    static std::array<double, all_steps> sin_table;
+    static std::array<double, all_steps> cos_table;
+    static std::array<double, all_steps> rad;
+    static bool first_time = true;
+    if (first_time) {
+        first_time = false;
+        for (int i = 0; i < all_steps; ++i) {
+            rad[i] = deg_to_rad(i * ANGLE_STEP);
+            sin_table[i] = sin(rad[i]);
+            cos_table[i] = cos(rad[i]);
         }
     }
 
-    const double cur_danger = m_danger_map.get_value(from);
+    const double factor = m_i.ew->get_wizard_movement_factor(*m_i.s);
+
+    const double strafe = m_i.g->getWizardStrafeSpeed() * factor;
+    const double fwd = m_i.g->getWizardForwardSpeed() * factor;
+    const double back = m_i.g->getWizardBackwardSpeed() * factor;
+
+
+    const int steps = static_cast<int>(360.0 / ANGLE_STEP);
+    double b = fwd;
+    double a = strafe;
+
+    const double my_angle = m_i.s->getAngle() + pi / 2;
+    const double turn_cos = cos(my_angle);
+    const double turn_sin = sin(my_angle);
+
+    for (int i = 0; i <= steps; ++i) {
+        double angle = rad[i];
+        if (angle > pi) {
+            b = back;
+        }
+
+        Vec2D cur{a * cos_table[i], -b * sin_table[i]};
+
+        //Rotate
+        double x1 = cur.x * turn_cos - cur.y * turn_sin;
+        double y1 = cur.y * turn_cos + cur.x * turn_sin;
+
+        cur.x = x1 + pt.x;
+        cur.y = y1 + pt.y;
+
+        if (m_i.ew->check_no_collision(cur, m_i.s->getRadius())) {
+            for (const auto &fmap : fmaps) {
+                forces[i] += fmap->get_value(cur);
+            }
+        } else {
+            forces[i] = 1e5;
+        }
+    }
+    for (const auto &fmap : fmaps) {
+        forces[all_steps] += fmap->get_value(pt);
+    }
     int min_idx = all_steps;
-    forces[all_steps] = cur_danger;
     for (int i = 0; i < forces.size(); ++i) {
         if (forces[i] < forces[min_idx]) {
             min_idx = i;
         }
     }
 
-
     if (min_idx == all_steps) {
         //Local minimum found, so best to stay here
         return {0, 0};
     }
 
-    double angle = deg_to_rad(min_idx * ANGLE_STEP);
-    Vec2D best{0, 0};
+    double angle = rad[min_idx];
     if (angle > pi) {
-        best.x += len2 * cos(angle);
-        best.y += len2 * sin(angle);
+        b = back;
     } else {
-        best.x += len * cos(angle);
-        best.y += len * sin(angle);
+        b = fwd;
     }
+    double x = a * cos_table[min_idx];
+    double y = -b * sin_table[min_idx];
 
+    double x1 = x * turn_cos - y * turn_sin;
+    double y1 = y * turn_cos + x * turn_sin;
 
-    best = normalize(best);
-    if (angle > pi) {
-        best *= len2;
-    } else {
-        best *= len;
-    }
-    return best;
+    return {x1, y1};
 }
 
 void MyStrategy::update_danger_map() {
@@ -480,27 +502,17 @@ void MyStrategy::update_danger_map() {
         double dead_zone_r = Eviscerator::calc_dead_zone(me, enemy);
 
         if (minion.getType() == MINION_ORC_WOODCUTTER) {
-            damage_fields.add_field(
-                std::make_unique<fields::CustomField>(
-                    Point2D{minion.getX(), minion.getY()},
-                    0,
-                    minion.getRadius() + m_i.g->getStaffRange(),
-                    [](double x) -> double {
-                        return 70;
-                    }
-                )
-            );
+            damage_fields.add_field(std::make_unique<fields::ConstField>(
+                Point2D{minion.getX(), minion.getY()},
+                0, minion.getRadius() + m_i.g->getStaffRange(),
+                70
+            ));
         } else {
-            damage_fields.add_field(
-                std::make_unique<fields::CustomField>(
-                    Point2D{minion.getX(), minion.getY()},
-                    0,
-                    m_i.g->getFetishBlowdartAttackRange() + m_i.s->getRadius(),
-                    [](double x) -> double {
-                        return 20;
-                    }
-                )
-            );
+            damage_fields.add_field(std::make_unique<fields::ConstField>(
+                Point2D{minion.getX(), minion.getY()},
+                0, m_i.g->getFetishBlowdartAttackRange() + m_i.s->getRadius(),
+                10
+            ));
         }
     }
     for (const auto &wizard : wizards) {
@@ -535,7 +547,7 @@ void MyStrategy::update_danger_map() {
             std::make_unique<fields::ExpRingField>(
                 Point2D{tower.x, tower.y},
                 0,
-                tower.attack_range + 5,
+                tower.attack_range + 1,
                 false,
                 fields::ExpConfig::from_two_points(config::DAMAGE_ZONE_CURVATURE, cost, dead_zone_r)
             )

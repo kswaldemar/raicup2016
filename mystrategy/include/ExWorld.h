@@ -19,7 +19,7 @@ public:
     ExWorld(const model::World &world, const model::Game &game);
 
     //Should be called at each tick start
-    void update_world(const model::World &world);
+    void update_world(const model::World &world, const model::Game &game);
 
     const std::vector<const model::Minion*> &get_hostile_creeps() const;
 

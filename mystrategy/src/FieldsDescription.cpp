@@ -7,13 +7,13 @@
 
 namespace fields {
 
-ConstRingField::ConstRingField(const geom::Point2D &center, double r1, double r2, double force)
+ConstField::ConstField(const geom::Point2D &center, double r1, double r2, double force)
 : IField(center), m_r1(r1 * r1), m_r2(r2 * r2), m_force(force) {
     assert(r1 >= 0);
     assert(r2 >= 0);
 }
 
-double ConstRingField::get_value(double x, double y) const {
+double ConstField::get_value(double x, double y) const {
     geom::Vec2D v(m_center.x - x, m_center.y - y);
     double dist = v.sqr();
     if (dist >= m_r1 && dist <= m_r2) {

@@ -36,7 +36,7 @@ public:
 
     void initialize_info_pack(const model::Wizard &self, const model::World &world, const model::Game &game);
 
-    geom::Vec2D damage_avoid_vector(const geom::Point2D &from);
+    geom::Vec2D potential_vector(const geom::Point2D &pt, const std::vector<const fields::FieldMap*> &fmap) const;
 
     bool initialize_strategy(const model::Wizard &self, const model::World &world, const model::Game &game);
 
