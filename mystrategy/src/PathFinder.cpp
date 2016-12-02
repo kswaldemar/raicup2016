@@ -436,5 +436,5 @@ bool PathFinder::update_cost(const PathFinder::CellCoord &pt_from, const PathFin
 }
 
 bool PathFinder::bonuses_is_under_control() const {
-    return m_lane_push_status[m_current_lane] > 0.45;
+    return m_lane_push_status[m_current_lane] > 0.4;
 }

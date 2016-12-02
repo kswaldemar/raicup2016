@@ -47,7 +47,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     } else {
         hold_time = 0;
     }
-    const bool not_moved = hold_time >= 3;
+    const bool not_moved = hold_time >= 7;
     //if (not_moved) {
     //    LOG("Tick %d: Not moved in last tick - spd (%3.1lf, %3.1lf)\n",
     //        world.getTickIndex(),
@@ -122,7 +122,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         }
     }
 
-    static constexpr int NOT_EXPENSIVE_ENEMY = 1400;
+    static constexpr int NOT_EXPENSIVE_ENEMY = 1600;
     if (danger_level <= config::BONUS_EARN_THRESH
         && (best_enemy <= NOT_EXPENSIVE_ENEMY)
         && m_pf->bonuses_is_under_control()) {
@@ -140,8 +140,8 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             }
 
             const double max_dist = 1600;
-            double td = shift_top.len() + game.getBonusRadius();
-            double tb = shift_bottom.len() + game.getBonusRadius();
+            double td = shift_top.len() - game.getBonusRadius();
+            double tb = shift_bottom.len() - game.getBonusRadius();
 
             bool want_bottom = tb <= max_dist && static_cast<int>(tb / my_speed) >= m_bns_bottom.time;
             bool want_top = td <= max_dist && static_cast<int>(td / my_speed) >= m_bns_top.time;
@@ -178,7 +178,10 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         if (!m_bhs[BH_EARN_BONUS].is_path_spoiled()) {
             will_go = true;
             dir = m_bhs[BH_EARN_BONUS].get_next_direction(self);
-            m_pf->move_along(dir, move, m_ev->can_shoot_to_target());
+            navigation.clear();
+            navigation.add_field(std::make_unique<fields::LinearField>(
+                me + dir, 0, nav_radius, NAV_POTENTIAL - 3
+            ));
         }
 
         if (will_go) {
@@ -203,6 +206,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             );
         }
         dir = m_bhs[BH_SCOUT].get_next_direction(self);
+        navigation.clear();
         navigation.add_field(std::make_unique<fields::LinearField>(
             me + dir, 0, nav_radius, NAV_POTENTIAL
         ));
@@ -223,7 +227,6 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             )
         );
 
-        Point2D from{self.getX(), self.getY()};
         if (m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled() && not_moved) {
             //Possibly stuck in place
             auto way = m_pf->find_way(wp_prev, PathFinder::WAYPOINT_RADIUS - PathFinder::GRID_SIZE);
@@ -237,6 +240,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
 
         if (!m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled()) {
             dir = m_bhs[BH_MINIMIZE_DANGER].get_next_direction(self);
+            navigation.clear();
             navigation.add_field(std::make_unique<fields::LinearField>(
                 me + dir, 0, nav_radius, NAV_POTENTIAL - 5
             ));
@@ -246,6 +250,31 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     dir = potential_vector(me, {&m_danger_map, &navigation});
     if (dir.len() > EPS) {
         m_pf->move_along(dir, move, have_target);
+    }
+
+    //If we stuck in the tree - destroy it
+    if (not_moved) {
+        double min_dist = 1e9;
+        double min_angle = pi;
+        const model::Tree *target = nullptr;
+        for (const auto &tree : world.getTrees()) {
+            double ang = std::abs(self.getAngleTo(tree));
+            double dist = self.getDistanceTo(tree);
+            if (dist < min_dist || (eps_equal(dist, min_dist) && ang < min_angle)) {
+                min_dist = dist;
+                min_angle = ang;
+                target = &tree;
+            }
+        }
+        if (target && min_dist <= target->getRadius() + game.getStaffRange()) {
+            double ang = self.getAngleTo(*target);
+            if (!have_target && (std::abs(ang) >= game.getStaffSector() / 2.0)) {
+                move.setTurn(ang);
+            }
+            if (std::abs(ang) < game.getStaffSector() / 2.0) {
+                move.setAction(ACTION_STAFF);
+            }
+        }
     }
 
     if (!m_i.ew->check_no_collision(me + dir, self.getRadius())) {
