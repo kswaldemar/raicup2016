@@ -22,80 +22,80 @@ inline double relAngle(double angle) {
     return rem(angle + pi, 2 * pi) - pi;
 }
 
+template<typename T>
+struct CustomVec2D {
+    T x, y;
 
-struct Vec2D {
-    double x, y;
-
-    Vec2D() {
+    CustomVec2D() {
     }
 
-    constexpr Vec2D(const Vec2D &v)
+    constexpr CustomVec2D(const CustomVec2D &v)
         : x(v.x),
           y(v.y) {
     }
 
-    constexpr Vec2D(double x_, double y_)
+    constexpr CustomVec2D(double x_, double y_)
         : x(x_),
           y(y_) {
     }
 
-    Vec2D &operator=(const Vec2D &v) {
+    CustomVec2D &operator=(const CustomVec2D &v) {
         x = v.x;
         y = v.y;
         return *this;
     }
 
-    constexpr Vec2D operator+(const Vec2D &v) const {
-        return Vec2D(x + v.x, y + v.y);
+    constexpr CustomVec2D operator+(const CustomVec2D &v) const {
+        return CustomVec2D(x + v.x, y + v.y);
     }
 
-    Vec2D &operator+=(const Vec2D &v) {
+    CustomVec2D &operator+=(const CustomVec2D &v) {
         x += v.x;
         y += v.y;
         return *this;
     }
 
-    constexpr Vec2D operator-(const Vec2D &v) const {
-        return Vec2D(x - v.x, y - v.y);
+    constexpr CustomVec2D operator-(const CustomVec2D &v) const {
+        return CustomVec2D(x - v.x, y - v.y);
     }
 
-    Vec2D &operator-=(const Vec2D &v) {
+    CustomVec2D &operator-=(const CustomVec2D &v) {
         x -= v.x;
         y -= v.y;
         return *this;
     }
 
-    constexpr Vec2D operator-() const {
-        return Vec2D(-x, -y);
+    constexpr CustomVec2D operator-() const {
+        return CustomVec2D(-x, -y);
     }
 
-    constexpr Vec2D operator*(double a) const {
-        return Vec2D(a * x, a * y);
+    constexpr CustomVec2D operator*(double a) const {
+        return CustomVec2D(a * x, a * y);
     }
 
-    Vec2D &operator*=(double a) {
+    CustomVec2D &operator*=(double a) {
         x *= a;
         y *= a;
         return *this;
     }
 
-    constexpr double operator*(const Vec2D &v) const {
+    constexpr double operator*(const CustomVec2D &v) const {
         return x * v.x + y * v.y;
     }
 
-    constexpr Vec2D operator/(double a) const {
+    constexpr CustomVec2D operator/(double a) const {
         return (*this) * (1 / a);
     }
 
-    Vec2D &operator/=(double a) {
+    CustomVec2D &operator/=(double a) {
         return (*this) *= (1 / a);
     }
 
-    constexpr Vec2D operator~() const {
-        return Vec2D(y, -x);
+    constexpr CustomVec2D operator~() const {
+        return CustomVec2D(y, -x);
     }
 
-    constexpr double operator%(const Vec2D &v) const {
+    constexpr double operator%(const CustomVec2D &v) const {
         return *this * ~v;
     }
 
@@ -107,6 +107,12 @@ struct Vec2D {
         return std::sqrt(x * x + y * y);
     }
 };
+
+using Vec2D = CustomVec2D<double>;
+//Same class, but only point in map, not vector by meaning
+using Point2D = Vec2D;
+using CellCoord = CustomVec2D<int>;
+
 
 inline constexpr Vec2D operator * (double a, const Vec2D &v)
 {
@@ -149,7 +155,5 @@ inline constexpr double deg_to_rad(const double deg_angle) {
     return deg_angle * pi / 180.0;
 }
 
-//Same class, but only point in map, not vector by meaning
-using Point2D = Vec2D;
 
 }

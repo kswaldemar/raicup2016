@@ -4,12 +4,14 @@
 
 #include "ExWorld.h"
 #include "Logger.h"
+#include "VisualDebug.h"
 #include "model/Game.h"
 #include <cassert>
 
 using namespace model;
 
-ExWorld::ExWorld(const model::World &world, const model::Game &game) : m_map_size(game.getMapSize()) {
+ExWorld::ExWorld(const model::World &world, const model::Game &game)
+    : m_map_size(game.getMapSize()) {
     int my_faction = world.getMyPlayer().getFaction();
 
     //Set enemy towers as our towers with mirrored coordinates
@@ -37,8 +39,9 @@ ExWorld::ExWorld(const model::World &world, const model::Game &game) : m_map_siz
 
 }
 
-void ExWorld::update_world(const model::World &world, const model::Game &game) {
+void ExWorld::update_world(const model::Wizard &self, const model::World &world, const model::Game &game) {
     const int my_faction = world.getMyPlayer().getFaction();
+    m_self_radius = self.getRadius();
 
     //Update hostile creeps
     m_en_creeps.clear();
@@ -138,6 +141,23 @@ void ExWorld::update_world(const model::World &world, const model::Game &game) {
         m_wizard_speed_factor[wizard.getId()] = factor;
     }
 
+    m_canvas_origin = {self.getX(), self.getY()};
+    update_canvas(m_canvas_origin);
+}
+
+void ExWorld::update_canvas(const geom::Point2D &origin) {
+    m_im_draw.clear();
+    for (const auto &i : m_obstacles) {
+        geom::Point2D t = {i->getX() - origin.x, i->getY() - origin.y};
+        t.x += m_im_draw.MAP_SIZE / 2;
+        t.y = -t.y;
+        t.y += m_im_draw.MAP_SIZE / 2;
+        auto translated = m_im_draw.to_internal(t.x, t.y);
+        if (m_im_draw.is_correct_point(translated)) {
+            int radius = m_im_draw.to_internal(i->getRadius() + m_self_radius);
+            m_im_draw.draw_circle(translated, radius);
+        }
+    }
 }
 
 void ExWorld::update_shadow_towers(const World &world) {
@@ -214,7 +234,7 @@ const std::vector<TowerDesc> &ExWorld::get_hostile_towers() const {
 }
 
 bool ExWorld::check_no_collision(const geom::Point2D &obj, const double radius) const {
-    const bool wall =    obj.x <= radius || obj.x >= m_map_size - radius
+    const bool wall = obj.x <= radius || obj.x >= m_map_size - radius
                       || obj.y <= radius || obj.y >= m_map_size - radius;
     if (wall) {
         return false;
@@ -247,4 +267,80 @@ bool ExWorld::check_in_team_vision(const geom::Point2D &pt) const {
 
 double ExWorld::get_wizard_movement_factor(const Wizard &who) const {
     return m_wizard_speed_factor[who.getId()];
+}
+
+bool ExWorld::line_of_sight(double x1, double y1, double x2, double y2) const {
+    geom::Point2D pt1 = {x1 - m_canvas_origin.x, y1 - m_canvas_origin.y};
+    geom::Point2D pt2 = {x2 - m_canvas_origin.x, y2 - m_canvas_origin.y};
+    static const geom::Point2D shift(m_im_draw.MAP_SIZE / 2, m_im_draw.MAP_SIZE / 2);
+    pt1.y = -pt1.y;
+    pt2.y = -pt2.y;
+    pt1 += shift;
+    pt2 += shift;
+
+    auto tr1 = m_im_draw.to_internal(pt1.x, pt1.y);
+    auto tr2 = m_im_draw.to_internal(pt2.x, pt2.y);
+
+    //Bresenham's line algorithm
+    int w = tr2.x - tr1.x;
+    int h = tr2.y - tr1.y;
+    int dx1 = 0;
+    int dy1 = 0;
+    int dx2 = 0;
+    int dy2 = 0;
+    if (w != 0) {
+        dx1 = w < 0 ? -1 : 1;
+        dx2 = w < 0 ? -1 : 1;
+    }
+    if (h != 0) {
+        dy1 = h < 0 ? -1 : 1;
+    }
+
+    int longest = std::abs(w);
+    int shortest = std::abs(h);
+    if (longest <= shortest) {
+        std::swap(longest, shortest);
+        if (h < 0) {
+            dy2 = -1;
+        } else if (h > 0) {
+            dy2 = 1;
+        }
+        dx2 = 0;
+    }
+    int numerator = longest >> 1;
+    int x = tr1.x;
+    int y = tr1.y;
+    for (int i = 0; i <= longest; i++) {
+        if (m_im_draw.get_pixel(x, y)) {
+            return false;
+        }
+        numerator += shortest;
+        if (numerator >= longest) {
+            numerator -= longest;
+            x += dx1;
+            y += dy1;
+        } else {
+            x += dx2;
+            y += dy2;
+        }
+
+        double wx = x * m_im_draw.GRID_SIZE + m_canvas_origin.x - shift.x;
+        double wy = -(y * m_im_draw.GRID_SIZE - shift.y) + m_canvas_origin.y;
+
+        VISUAL(fillCircle(wx, wy, m_im_draw.GRID_SIZE / 2, 0x881100));
+    }
+    return true;
+}
+
+void ExWorld::show_me_canvas() const {
+    static const geom::Point2D shift(m_im_draw.MAP_SIZE / 2, m_im_draw.MAP_SIZE / 2);
+    for (int x = 0; x < m_im_draw.CELL_COUNT; ++x) {
+        for (int y = 0; y < m_im_draw.CELL_COUNT; ++y) {
+            if (m_im_draw.get_pixel(x, y)) {
+                double wx = x * m_im_draw.GRID_SIZE + m_canvas_origin.x - shift.x;
+                double wy = -(y * m_im_draw.GRID_SIZE - shift.y) + m_canvas_origin.y;
+                VISUAL(fillCircle(wx, wy, m_im_draw.GRID_SIZE / 2, 0x118800));
+            }
+        }
+    }
 }

@@ -15,6 +15,7 @@ set(sources
     src/VisualDebug.cpp
     src/SkillBuilder.cpp
     src/ExWorld.cpp
+    src/Canvas.cpp
 )
 file(GLOB headers include/*.h)
 

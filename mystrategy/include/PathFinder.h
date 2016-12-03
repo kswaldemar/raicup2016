@@ -26,14 +26,6 @@ public:
     //Max cell number to visit before manual halt (if more think there is no way)
     static constexpr int ASTAR_MAX_VISIT = 5000;
 
-
-    struct CellCoord {
-        int x, y;
-
-        CellCoord operator+(const CellCoord &other) const {
-            return {x + other.x, y + other.y};
-        }
-    };
     struct Cell {
         //To build path, after searching
         enum DIR {
@@ -42,7 +34,7 @@ public:
             D = 4,
             L = 8,
         };
-        CellCoord me;
+        geom::CellCoord me;
         const Cell *parent;
         double cost;
     };
@@ -63,9 +55,9 @@ public:
      */
     std::list<geom::Point2D> find_way(const geom::Point2D &to, double radius);
 
-    static CellCoord world_to_cell(const geom::Point2D &wpt);
+    static geom::CellCoord world_to_cell(const geom::Point2D &wpt);
 
-    static geom::Point2D cell_to_world(const CellCoord &cpt);
+    static geom::Point2D cell_to_world(const geom::CellCoord &cpt);
 
     bool bonuses_is_under_control() const;
 
@@ -79,9 +71,9 @@ public:
 
 private:
 
-    bool is_correct_cell(const CellCoord &tocheck, const CellCoord &initial);
+    bool is_correct_cell(const geom::CellCoord &tocheck, const geom::CellCoord &initial);
 
-    bool update_cost(const CellCoord &pt_from, const CellCoord &pt_to);
+    bool update_cost(const geom::CellCoord &pt_from, const geom::CellCoord &pt_to);
 
     const InfoPack *m_i;
     const fields::FieldMap *m_danger_map;

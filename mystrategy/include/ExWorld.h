@@ -8,6 +8,7 @@
 #include "Vec2D.h"
 #include "model/World.h"
 #include "model/Game.h"
+#include "Canvas.h"
 #include <array>
 
 /**
@@ -19,7 +20,7 @@ public:
     ExWorld(const model::World &world, const model::Game &game);
 
     //Should be called at each tick start
-    void update_world(const model::World &world, const model::Game &game);
+    void update_world(const model::Wizard &self, const model::World &world, const model::Game &game);
 
     const std::vector<const model::Minion*> &get_hostile_creeps() const;
 
@@ -35,9 +36,15 @@ public:
 
     double get_wizard_movement_factor(const model::Wizard &who) const;
 
+    bool line_of_sight(double x1, double y1, double x2, double y2) const;
+
+    void show_me_canvas() const;
+
 private:
 
     void update_shadow_towers(const model::World &world);
+
+    void update_canvas(const geom::Point2D &origin);
 
     const double m_map_size;
     std::vector<const model::CircularUnit*> m_obstacles;
@@ -48,4 +55,8 @@ private:
 
     std::vector<TowerDesc> m_shadow_towers;
     std::array<double, 10> m_wizard_speed_factor;
+
+    double m_self_radius;
+    geom::Point2D m_canvas_origin;
+    Canvas m_im_draw;
 };

@@ -277,7 +277,7 @@ std::list<geom::Point2D> PathFinder::find_way(const geom::Point2D &to, double ra
     //Clear map
     for (int i = 0; i < m_map.size(); ++i) {
         for (int j = 0; j < m_map[i].size(); ++j) {
-            m_map[i][j] = {{i, j}, nullptr, 1e9};
+            m_map[i][j] = {geom::CellCoord(i, j), nullptr, 1e9};
         };
     }
     //Clear closed cells
@@ -293,12 +293,12 @@ std::list<geom::Point2D> PathFinder::find_way(const geom::Point2D &to, double ra
     };
 
     struct CCWithCost {
-        CCWithCost(const CellCoord &pt_, double cost_)
+        CCWithCost(const geom::CellCoord &pt_, double cost_)
             : pt(pt_),
               cost(cost_) {
         }
 
-        CellCoord pt;
+        geom::CellCoord pt;
         double cost;
 
         bool operator>(const CCWithCost &other) const {
@@ -307,7 +307,7 @@ std::list<geom::Point2D> PathFinder::find_way(const geom::Point2D &to, double ra
     };
 
     std::priority_queue<CCWithCost, std::vector<CCWithCost>, std::greater<CCWithCost>> open;
-    CellCoord initial;
+    geom::CellCoord initial;
     initial = world_to_cell({m_i->s->getX(), m_i->s->getY()});
     m_map[initial.x][initial.y].cost = 0;
 
@@ -317,11 +317,11 @@ std::list<geom::Point2D> PathFinder::find_way(const geom::Point2D &to, double ra
     const auto sqrradius = radius * radius;
     const Cell *found = nullptr;
     bool first = true;
-    CellCoord nearest = initial;
+    geom::CellCoord nearest = initial;
     int min_manh = 100000000;
-    const CellCoord cell_target = world_to_cell(to);
+    const geom::CellCoord cell_target = world_to_cell(to);
     while (!open.empty()) {
-        CellCoord next = open.top().pt;
+        geom::CellCoord next = open.top().pt;
         //LOG("Looking cell (%d, %d) with cost %lf\n", next.x, next.y, open.top().cost);
         open.pop();
         ++visited_cells;
@@ -355,7 +355,7 @@ std::list<geom::Point2D> PathFinder::find_way(const geom::Point2D &to, double ra
         //Don't need to visit it anymore
         closed[next.x][next.y] = true;
         //For each neighbor
-        static const std::initializer_list<CellCoord> shifts = {
+        static const std::initializer_list<geom::CellCoord> shifts = {
             {0, -1},
             {1, -1},
             {1, 0},
@@ -365,7 +365,7 @@ std::list<geom::Point2D> PathFinder::find_way(const geom::Point2D &to, double ra
             {-1, 0},
             {-1, -1}
         };
-        CellCoord neigh;
+        geom::CellCoord neigh;
         for (const auto &shift: shifts) {
             neigh = next + shift;
             if (!closed[neigh.x][neigh.y]) {
@@ -404,20 +404,20 @@ std::list<geom::Point2D> PathFinder::find_way(const geom::Point2D &to, double ra
     return ret;
 }
 
-bool PathFinder::is_correct_cell(const PathFinder::CellCoord &tocheck, const PathFinder::CellCoord &initial) {
+bool PathFinder::is_correct_cell(const geom::CellCoord &tocheck, const geom::CellCoord &initial) {
     const bool inbound = tocheck.x >= 0 && tocheck.x < CELL_COUNT && tocheck.y >= 0 && tocheck.y < CELL_COUNT;
     return inbound;
 }
 
-PathFinder::CellCoord PathFinder::world_to_cell(const Point2D &wpt) {
-    return {static_cast<int>(round(wpt.x / GRID_SIZE)), static_cast<int>(round(wpt.y / GRID_SIZE))};
+geom::CellCoord PathFinder::world_to_cell(const Point2D &wpt) {
+    return geom::CellCoord(static_cast<int>(round(wpt.x / GRID_SIZE)), static_cast<int>(round(wpt.y / GRID_SIZE)));
 }
 
-geom::Point2D PathFinder::cell_to_world(const PathFinder::CellCoord &cpt) {
+geom::Point2D PathFinder::cell_to_world(const geom::CellCoord &cpt) {
     return Point2D(cpt.x * GRID_SIZE, cpt.y * GRID_SIZE);
 }
 
-bool PathFinder::update_cost(const PathFinder::CellCoord &pt_from, const PathFinder::CellCoord &pt_to) {
+bool PathFinder::update_cost(const geom::CellCoord &pt_from, const geom::CellCoord &pt_to) {
     const double D2 = sqrt(2) * GRID_SIZE;
     const double D = GRID_SIZE;
     int dx = std::abs(pt_from.x - pt_to.x);
