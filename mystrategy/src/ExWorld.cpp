@@ -154,7 +154,7 @@ void ExWorld::update_canvas(const geom::Point2D &origin) {
         t.y += m_im_draw.MAP_SIZE / 2;
         auto translated = m_im_draw.to_internal(t.x, t.y);
         if (m_im_draw.is_correct_point(translated)) {
-            int radius = m_im_draw.to_internal(i->getRadius() + m_self_radius);
+            int radius = m_im_draw.to_internal(i->getRadius() + 35 - m_im_draw.GRID_SIZE);
             m_im_draw.draw_circle(translated, radius);
         }
     }
@@ -326,7 +326,6 @@ bool ExWorld::line_of_sight(double x1, double y1, double x2, double y2) const {
 
         double wx = x * m_im_draw.GRID_SIZE + m_canvas_origin.x - shift.x;
         double wy = -(y * m_im_draw.GRID_SIZE - shift.y) + m_canvas_origin.y;
-
         VISUAL(fillCircle(wx, wy, m_im_draw.GRID_SIZE / 2, 0x881100));
     }
     return true;

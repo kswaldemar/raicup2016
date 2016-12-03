@@ -248,23 +248,16 @@ geom::Point2D PathFinder::bottom_lane_projection(const geom::Point2D &me, int sh
 
 void PathFinder::move_along(const geom::Vec2D &dir, model::Move &move, bool hold_face) {
     const double turn_angle = m_i->s->getAngleTo(m_i->s->getX() + dir.x, m_i->s->getY() + dir.y);
-    double strafe = sin(turn_angle);
-    double f_b = cos(turn_angle);
+    const double my_angle = m_i->s->getAngle() + pi / 2;
 
-    strafe *= m_i->g->getWizardStrafeSpeed();
-    if (f_b > 0) {
-        f_b *= m_i->g->getWizardForwardSpeed();
-    } else {
-        f_b *= m_i->g->getWizardBackwardSpeed();
-    }
+    const double turn_cos = cos(-my_angle);
+    const double turn_sin = sin(-my_angle);
 
-    double factor = m_i->ew->get_wizard_movement_factor(*m_i->s);
+    double x1 = dir.x * turn_cos - dir.y * turn_sin;
+    double y1 = dir.y * turn_cos + dir.x * turn_sin;
 
-    strafe *= factor;
-    f_b *= factor;
-
-    move.setStrafeSpeed(strafe);
-    move.setSpeed(f_b);
+    move.setStrafeSpeed(x1);
+    move.setSpeed(-y1);
 
     if (!hold_face) {
         move.setTurn(turn_angle);

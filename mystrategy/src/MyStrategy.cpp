@@ -13,8 +13,7 @@ using namespace model;
 using namespace std;
 using namespace geom;
 
-const double EPS = 0.00003;
-InfoPack g_info;
+const double EPS = 1e-7;
 
 bool eps_equal(double d1, double d2) {
     const double diff = d1 - d2;
@@ -62,9 +61,21 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
 
     visualise_danger_map(m_danger_map, me);
 
+    //if (world.getTickIndex() % 2 == 0) {
+    //    m_i.ew->show_me_canvas();
+    //}
+
     VISUAL(endPre());
 
     VISUAL(beginPost());
+
+
+    //const bool sight = m_i.ew->line_of_sight(me.x, me.y, 600, 3800);
+    //LOG("I'm %s see point!\n", sight ? "" : "don't");
+    //
+    //m_i.ew->show_me_canvas();
+
+
 #ifdef RUNNING_LOCAL
     {
         char buf[20];
@@ -89,7 +100,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     double danger_level = m_danger_map.get_value(me);
 
     fields::FieldMap navigation(fields::FieldMap::MIN);
-    const double NAV_POTENTIAL = -25;
+    const double NAV_K = -2.5;
     int nav_radius = PathFinder::GRID_SIZE * 2;
 
     int best_enemy = m_ev->choose_enemy();
@@ -105,14 +116,16 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             if (self.getDistanceTo(*description.unit) >= description.att_range) {
                 m_bhs[BH_ATTACK].update_target(*description.unit);
                 if (m_bhs[BH_ATTACK].is_path_spoiled()) {
+                    auto way = m_pf->find_way({description.unit->getX(), description.unit->getY()}, description.att_range - PathFinder::GRID_SIZE);
+                    smooth_path(me, way);
                     m_bhs[BH_ATTACK].load_path(
-                        m_pf->find_way({description.unit->getX(), description.unit->getY()}, description.att_range - PathFinder::GRID_SIZE),
+                        std::move(way),
                         *description.unit
                     );
                 }
                 dir = m_bhs[BH_ATTACK].get_next_direction(self);
                 navigation.add_field(std::make_unique<fields::LinearField>(
-                    me + dir, 0, nav_radius, NAV_POTENTIAL
+                    me + dir, 0, dir.len(), NAV_K * dir.len()
                 ));
             } else {
                 if (self.getDistanceTo(*description.unit) <= description.att_range) {
@@ -131,14 +144,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         if (m_bhs[BH_EARN_BONUS].is_path_spoiled()) {
             geom::Vec2D shift_top = m_bns_top.pt - me;
             geom::Vec2D shift_bottom = m_bns_bottom.pt - me;
-            double my_speed = game.getWizardForwardSpeed();
-            const auto &statuses = m_i.s->getStatuses();
-            for (const auto &st : statuses) {
-                if (st.getType() == model::STATUS_HASTENED) {
-                    my_speed *= 1.0 + m_i.g->getHastenedMovementBonusFactor();
-                }
-            }
-
+            double my_speed = game.getWizardForwardSpeed() * m_i.ew->get_wizard_movement_factor(self);
             const double max_dist = 1600;
             double td = shift_top.len() - game.getBonusRadius();
             double tb = shift_bottom.len() - game.getBonusRadius();
@@ -154,6 +160,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             if (want_top) {
                 m_bhs[BH_EARN_BONUS].update_target(m_bns_top.pt, game.getBonusRadius() + 5);
                 auto way = m_pf->find_way(m_bns_top.pt, game.getBonusRadius() + 5);
+                smooth_path(me, way);
                 m_bhs[BH_EARN_BONUS].load_path(
                     std::move(way),
                     m_bns_top.pt,
@@ -164,6 +171,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             } else if (want_bottom) {
                 m_bhs[BH_EARN_BONUS].update_target(m_bns_bottom.pt, game.getBonusRadius() + 4);
                 auto way = m_pf->find_way(m_bns_bottom.pt, game.getBonusRadius() + 4);
+                smooth_path(me, way);
                 m_bhs[BH_EARN_BONUS].load_path(
                     std::move(way),
                     m_bns_bottom.pt,
@@ -180,7 +188,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             dir = m_bhs[BH_EARN_BONUS].get_next_direction(self);
             navigation.clear();
             navigation.add_field(std::make_unique<fields::LinearField>(
-                me + dir, 0, nav_radius, NAV_POTENTIAL - 3
+                me + dir, 0, dir.len(), NAV_K * dir.len()
             ));
         }
 
@@ -199,6 +207,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         m_bhs[BH_SCOUT].update_target(wp_next, PathFinder::WAYPOINT_RADIUS);
         if (m_bhs[BH_SCOUT].is_path_spoiled()) {
             auto way = m_pf->find_way(wp_next, PathFinder::WAYPOINT_RADIUS - PathFinder::GRID_SIZE);
+            smooth_path(me, way);
             m_bhs[BH_SCOUT].load_path(
                 std::move(way),
                 wp_next,
@@ -208,7 +217,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         dir = m_bhs[BH_SCOUT].get_next_direction(self);
         navigation.clear();
         navigation.add_field(std::make_unique<fields::LinearField>(
-            me + dir, 0, nav_radius, NAV_POTENTIAL
+            me + dir, 0, dir.len(), NAV_K * dir.len()
         ));
 
         VISUAL(line(self.getX(), self.getY(), self.getX() + dir.x, self.getY() + dir.y, 0xFF0000));
@@ -230,6 +239,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         if (m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled() && not_moved) {
             //Possibly stuck in place
             auto way = m_pf->find_way(wp_prev, PathFinder::WAYPOINT_RADIUS - PathFinder::GRID_SIZE);
+            smooth_path(me, way);
             m_bhs[BH_MINIMIZE_DANGER].update_target(wp_prev, PathFinder::WAYPOINT_RADIUS);
             m_bhs[BH_MINIMIZE_DANGER].load_path(
                 std::move(way),
@@ -242,7 +252,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             dir = m_bhs[BH_MINIMIZE_DANGER].get_next_direction(self);
             navigation.clear();
             navigation.add_field(std::make_unique<fields::LinearField>(
-                me + dir, 0, nav_radius, NAV_POTENTIAL - 5
+                me + dir, 0, dir.len(), NAV_K * dir.len()
             ));
         }
     }
@@ -251,6 +261,35 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     if (dir.len() > EPS) {
         m_pf->move_along(dir, move, have_target);
     }
+
+    //static geom::Point2D future_pos{0, 0};
+    //
+    ////if (!not_moved && (!eps_equal(future_pos.x, me.x) || !eps_equal(future_pos.y, me.y))) {
+    ////    LOG("Collision detected! %d\n", m_i.ew->check_no_collision(future_pos, self.getRadius()));
+    ////}
+    //
+    //future_pos = me + dir;
+    //
+    //if (!m_i.ew->check_no_collision(future_pos, self.getRadius())) {
+    //    LOG("ERROR: Check no collision failed. Destination (%3.1lf, %3.1lf) will lead to collision. "
+    //            "Vector (%3.1lf, %3.1lf); Me (%3.1lf, %3.1lf); Angle %3.5lf\n",
+    //        future_pos.x,
+    //        future_pos.y,
+    //        dir.x,
+    //        dir.y,
+    //        me.x,
+    //        me.y,
+    //        self.getAngle());
+    //} else {
+    //    LOG("Tick %d; My position (%3.7lf, %3.7lf); Future position (%3.7lf, %3.7lf); Vector (%3.7lf, %3.7lf);\n",
+    //        world.getTickIndex(),
+    //        me.x,
+    //        me.y,
+    //        future_pos.x,
+    //        future_pos.y, dir.x, dir.y);
+    //}
+    //
+    //return;
 
     //If we stuck in the tree - destroy it
     if (not_moved) {
@@ -275,19 +314,6 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
                 move.setAction(ACTION_STAFF);
             }
         }
-    }
-
-    if (!m_i.ew->check_no_collision(me + dir, self.getRadius())) {
-        auto dest = me + dir;
-        LOG("ERROR: Check no collision failed. Destination (%3.1lf, %3.1lf) will lead to collision. "
-                "Vector (%3.1lf, %3.1lf); Me (%3.1lf, %3.1lf); Angle %3.5lf\n",
-            dest.x,
-            dest.y,
-            dir.x,
-            dir.y,
-            me.x,
-            me.y,
-            self.getAngle());
     }
 
     //Try to destroy enemy, while going to another targets
@@ -382,7 +408,7 @@ void MyStrategy::each_tick_update(const model::Wizard &self, const model::World 
     }
     last_tick = cur_tick;
 
-    m_i.ew->update_world(world, game);
+    m_i.ew->update_world(self, world, game);
 
     //Calculate danger map
     update_danger_map();
@@ -658,5 +684,17 @@ void MyStrategy::update_bonuses() {
     }
     if (m_bns_top.time > 0) {
         --m_bns_top.time;
+    }
+}
+
+void MyStrategy::smooth_path(const geom::Point2D &me, std::list<geom::Point2D> &path) {
+    auto almost_last = path.cend();
+    --almost_last;
+    for (auto it = path.cbegin(); it != almost_last;) {
+        if (m_i.ew->line_of_sight(me.x, me.y, it->x, it->y)) {
+            it = path.erase(it);
+        } else {
+            break;
+        }
     }
 }
