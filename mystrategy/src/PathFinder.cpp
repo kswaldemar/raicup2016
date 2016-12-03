@@ -265,7 +265,14 @@ void PathFinder::move_along(const geom::Vec2D &dir, model::Move &move, bool hold
 }
 
 std::list<geom::Point2D> PathFinder::find_way(const geom::Point2D &to, double radius) {
-    const double ex_r = m_i->s->getRadius() + 0.1;
+
+    if (m_i->ew->line_of_sight(m_i->s->getX(), m_i->s->getY(), to.x, to.y)) {
+        //Go straight
+        return {to};
+    }
+
+
+    const double ex_r = m_i->s->getRadius();
 
     //Clear map
     for (int i = 0; i < m_map.size(); ++i) {

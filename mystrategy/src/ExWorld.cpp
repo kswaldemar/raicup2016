@@ -310,24 +310,33 @@ bool ExWorld::line_of_sight(double x1, double y1, double x2, double y2) const {
     int numerator = longest >> 1;
     int x = tr1.x;
     int y = tr1.y;
+    bool has_pixel = false;
     for (int i = 0; i <= longest; i++) {
-        if (m_im_draw.get_pixel(x, y)) {
-            return false;
-        }
+
+        has_pixel = m_im_draw.get_pixel(x, y);
+
         numerator += shortest;
         if (numerator >= longest) {
             numerator -= longest;
             x += dx1;
+            //Bold line check
+            has_pixel = has_pixel || m_im_draw.get_pixel(x, y);
             y += dy1;
         } else {
             x += dx2;
+            has_pixel = has_pixel || m_im_draw.get_pixel(x, y);
             y += dy2;
+        }
+
+        if (has_pixel) {
+            return false;
         }
 
         double wx = x * m_im_draw.GRID_SIZE + m_canvas_origin.x - shift.x;
         double wy = -(y * m_im_draw.GRID_SIZE - shift.y) + m_canvas_origin.y;
         VISUAL(fillCircle(wx, wy, m_im_draw.GRID_SIZE / 2, 0x881100));
     }
+
     return true;
 }
 

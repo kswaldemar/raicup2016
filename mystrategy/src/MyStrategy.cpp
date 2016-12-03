@@ -105,32 +105,30 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
 
     int best_enemy = m_ev->choose_enemy();
     const bool have_target = best_enemy > 0;
-    if (danger_level <= config::ATTACK_THRESH && current_action == BH_COUNT) {
+    if (danger_level <= config::ATTACK_THRESH && current_action == BH_COUNT && have_target) {
         //Danger is ok to attack
-        m_pf->get_next_waypoint();
-        if (have_target) {
-            //Enemy choosen
-            prev_action = current_action;
-            current_action = BH_ATTACK;
-            auto description = m_ev->destroy(move);
-            if (self.getDistanceTo(*description.unit) >= description.att_range) {
-                m_bhs[BH_ATTACK].update_target(*description.unit);
-                if (m_bhs[BH_ATTACK].is_path_spoiled()) {
-                    auto way = m_pf->find_way({description.unit->getX(), description.unit->getY()}, description.att_range - PathFinder::GRID_SIZE);
-                    smooth_path(me, way);
-                    m_bhs[BH_ATTACK].load_path(
-                        std::move(way),
-                        *description.unit
-                    );
-                }
-                dir = m_bhs[BH_ATTACK].get_next_direction(self);
-                navigation.add_field(std::make_unique<fields::LinearField>(
-                    me + dir, 0, dir.len(), NAV_K * dir.len()
-                ));
-            } else {
-                if (self.getDistanceTo(*description.unit) <= description.att_range) {
-                    current_action = BH_MINIMIZE_DANGER;
-                }
+        //Enemy choosen
+        prev_action = current_action;
+        current_action = BH_ATTACK;
+        auto description = m_ev->destroy(move);
+        if (self.getDistanceTo(*description.unit) >= description.att_range) {
+            m_bhs[BH_ATTACK].update_target(*description.unit);
+            if (m_bhs[BH_ATTACK].is_path_spoiled()) {
+                auto way = m_pf->find_way({description.unit->getX(), description.unit->getY()},
+                                          description.att_range - PathFinder::GRID_SIZE);
+                smooth_path(me, way);
+                m_bhs[BH_ATTACK].load_path(
+                    std::move(way),
+                    *description.unit
+                );
+            }
+            dir = m_bhs[BH_ATTACK].get_next_direction(self);
+            navigation.add_field(std::make_unique<fields::LinearField>(
+                me + dir, 0, dir.len(), NAV_K * dir.len()
+            ));
+        } else {
+            if (self.getDistanceTo(*description.unit) <= description.att_range) {
+                current_action = BH_MINIMIZE_DANGER;
             }
         }
     }
@@ -220,7 +218,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             me + dir, 0, dir.len(), NAV_K * dir.len()
         ));
 
-        VISUAL(line(self.getX(), self.getY(), self.getX() + dir.x, self.getY() + dir.y, 0xFF0000));
+        //VISUAL(line(self.getX(), self.getY(), self.getX() + dir.x, self.getY() + dir.y, 0xFF0000));
     }
 
     if (current_action == BH_COUNT || current_action == BH_MINIMIZE_DANGER) {
@@ -288,7 +286,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     //        future_pos.x,
     //        future_pos.y, dir.x, dir.y);
     //}
-    //
+
     //return;
 
     //If we stuck in the tree - destroy it
@@ -340,26 +338,26 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     }
 
 #ifdef RUNNING_LOCAL
-    dir *= 3;
-    VISUAL(line(self.getX(), self.getY(), self.getX() + dir.x, self.getY() + dir.y, 0xB325DA));
-    char buf[10];
-    char c = 'N';
-    assert(current_action != BH_COUNT);
-    switch (current_action) {
-        case BH_MINIMIZE_DANGER:c = 'M';
-            break;
-        case BH_ATTACK:c = 'A';
-            break;
-        case BH_SCOUT:c = 'R';
-            break;
-        case BH_EARN_BONUS: c = 'B';
-            break;
-    }
-    sprintf(buf, "%c %3.1lf%%", c, m_danger_map.get_value(self.getX(), self.getY()));
-    VISUAL(text(self.getX() - 70, self.getY() - 60, buf, 0xFF0000));
-    //Vec2D spd{self.getSpeedX(), self.getSpeedY()};
-    //sprintf(buf, "spd %3.1lf", spd.len());
-    //VISUAL(text(self.getX(), self.getY() - 70, buf, 0x009911));
+        dir *= 3;
+        VISUAL(line(self.getX(), self.getY(), self.getX() + dir.x, self.getY() + dir.y, 0xB325DA));
+        char buf[10];
+        char c = 'N';
+        assert(current_action != BH_COUNT);
+        switch (current_action) {
+            case BH_MINIMIZE_DANGER:c = 'M';
+                break;
+            case BH_ATTACK:c = 'A';
+                break;
+            case BH_SCOUT:c = 'R';
+                break;
+            case BH_EARN_BONUS: c = 'B';
+                break;
+        }
+        sprintf(buf, "%c %3.1lf%%", c, m_danger_map.get_value(self.getX(), self.getY()));
+        VISUAL(text(self.getX() - 70, self.getY() - 60, buf, 0xFF0000));
+        //Vec2D spd{self.getSpeedX(), self.getSpeedY()};
+        //sprintf(buf, "spd %3.1lf", spd.len());
+        //VISUAL(text(self.getX(), self.getY() - 70, buf, 0x009911));
 #endif
 
 
@@ -424,7 +422,7 @@ void MyStrategy::each_tick_update(const model::Wizard &self, const model::World 
     }
 }
 
-geom::Vec2D MyStrategy::potential_vector(const Point2D &pt, const std::vector<const fields::FieldMap*> &fmaps) const {
+geom::Vec2D MyStrategy::potential_vector(const Point2D &pt, const std::vector<const fields::FieldMap *> &fmaps) const {
     constexpr double ANGLE_STEP = 1;
     constexpr int all_steps = static_cast<int>((360 + ANGLE_STEP) / ANGLE_STEP);
     std::array<double, all_steps + 1> forces;
