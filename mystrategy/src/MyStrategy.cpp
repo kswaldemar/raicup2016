@@ -79,7 +79,6 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         prev_action = current_action;
         current_action = BH_ATTACK;
         auto description = m_ev->destroy(move);
-        description.att_range -= 6; // TODO: Do it in right way.
         if (self.getDistanceTo(*description.unit) >= description.att_range) {
             m_bhs[BH_ATTACK].update_target(*description.unit);
             if (m_bhs[BH_ATTACK].is_path_spoiled()) {
@@ -529,18 +528,11 @@ void MyStrategy::update_danger_map() {
         }
         attack_range += m_i.s->getRadius();
 
-        const AttackUnit enemy{i->getRemainingActionCooldownTicks(),
-                               i->getCooldownTicks(),
-                               i->getDamage(),
-                               attack_range,
-                               m_i.g->getMinionSpeed()};
-        double dead_zone_r = Eviscerator::calc_dead_zone(me, enemy);
-
         if (i->getType() == MINION_ORC_WOODCUTTER) {
             damage_fields.add_field(std::make_unique<fields::ConstField>(
                 Point2D{i->getX(), i->getY()},
-                0, i->getRadius() + m_i.g->getStaffRange(),
-                70
+                0, m_i.s->getRadius() + m_i.g->getOrcWoodcutterAttackRange(),
+                20
             ));
         } else {
             damage_fields.add_field(std::make_unique<fields::ConstField>(
