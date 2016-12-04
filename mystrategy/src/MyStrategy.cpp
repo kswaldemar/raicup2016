@@ -70,14 +70,16 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     int nav_radius = 5000;
 
     int best_enemy = m_ev->choose_enemy();
-    bool have_target = best_enemy > 0;
+    const bool have_target = best_enemy > 0;
+    const bool can_shoot = m_ev->can_shoot_to_target();
+    bool hold_face = have_target;
     if (danger_level <= config::ATTACK_THRESH && current_action == BH_COUNT && have_target) {
         //Danger is ok to attack
         //Enemy choosen
         prev_action = current_action;
         current_action = BH_ATTACK;
         auto description = m_ev->destroy(move);
-        description.att_range -= 4; // TODO: Do it in right way.
+        description.att_range -= 6; // TODO: Do it in right way.
         if (self.getDistanceTo(*description.unit) >= description.att_range) {
             m_bhs[BH_ATTACK].update_target(*description.unit);
             if (m_bhs[BH_ATTACK].is_path_spoiled()) {
@@ -93,11 +95,10 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             navigation.add_field(std::make_unique<fields::LinearField>(
                 me + dir, 0, nav_radius, NAV_K * nav_radius
             ));
-        } else {
-            if (self.getDistanceTo(*description.unit) <= description.att_range) {
-                current_action = BH_MINIMIZE_DANGER;
-            }
+        } else if (self.getDistanceTo(*description.unit) <= description.att_range) {
+            current_action = BH_MINIMIZE_DANGER;
         }
+
     }
 
     static constexpr int NOT_EXPENSIVE_ENEMY = 1600;
@@ -114,8 +115,10 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             double td = shift_top.len() - game.getBonusRadius();
             double tb = shift_bottom.len() - game.getBonusRadius();
 
-            bool want_bottom = tb <= max_dist && static_cast<int>(tb / my_speed) >= m_bns_bottom.time;
-            bool want_top = td <= max_dist && static_cast<int>(td / my_speed) >= m_bns_top.time;
+            static const int bonus_overtime = 100;
+            int time_bottom = static_cast<int>(ceil(tb / my_speed));
+            bool want_bottom = tb <= max_dist && m_bns_bottom.time - time_bottom <= bonus_overtime;
+            bool want_top = td <= max_dist && m_bns_top.time - static_cast<int>(ceil(td / my_speed)) <= bonus_overtime;
 
             if (want_bottom && want_top) {
                 want_bottom = tb <= td;
@@ -160,8 +163,28 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         if (will_go) {
             prev_action = current_action;
             current_action = BH_EARN_BONUS;
+            hold_face = can_shoot;
         }
     }
+
+    //Prevent bonus denying
+    if (m_bns_top.time > 0 && m_bns_top.time < 26) {
+        m_danger_map.add_field(std::make_unique<fields::ConstField>(
+            m_bns_top.pt, 0, game.getBonusRadius() + self.getRadius(), 100
+        ));
+        m_danger_map.add_field(std::make_unique<fields::LinearField>(
+            m_bns_top.pt, 0, game.getBonusRadius() + self.getRadius(), 1000
+        ));
+    }
+    if (m_bns_bottom.time > 0 && m_bns_bottom.time < 26) {
+        m_danger_map.add_field(std::make_unique<fields::ConstField>(
+            m_bns_bottom.pt, 0, game.getBonusRadius() + self.getRadius(), 100
+        ));
+        m_danger_map.add_field(std::make_unique<fields::LinearField>(
+            m_bns_bottom.pt, 0, game.getBonusRadius() + self.getRadius(), 1000
+        ));
+    }
+
 
     geom::Point2D waypoint{0, 0};
 
@@ -230,7 +253,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
 
     dir = potential_vector(me, {&m_danger_map, &navigation});
     if (dir.len() > EPS) {
-        m_pf->move_along(dir, move, have_target);
+        m_pf->move_along(dir, move, hold_face);
     }
 
     //Check tree blocking way
@@ -249,7 +272,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             destroy_obstacle = true;
         }
     }
-    if ((current_action == BH_MINIMIZE_DANGER || current_action == BH_EARN_BONUS) && have_target && !destroy_obstacle) {
+    if ((current_action == BH_MINIMIZE_DANGER || current_action == BH_EARN_BONUS) && can_shoot && !destroy_obstacle) {
         //Shoot to enemy, when retreating
         m_ev->destroy(move);
     }
@@ -351,7 +374,7 @@ bool MyStrategy::initialize_strategy(const model::Wizard &self, const model::Wor
     m_bhs[BH_MINIMIZE_DANGER].PATH_SPOIL_TIME = 100;
 
     m_bns_top.pt = {1200, 1200};
-    m_bns_top.time = 2501;
+    m_bns_top.time = 2502;
     m_bns_bottom.pt = {2800, 2800};
     m_bns_bottom.time = m_bns_top.time;
 

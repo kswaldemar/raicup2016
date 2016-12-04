@@ -153,7 +153,7 @@ Eviscerator::DestroyDesc Eviscerator::destroy(model::Move &move) {
     const bool has_frostbolt = std::find(skills.cbegin(), skills.cend(), model::SKILL_FROST_BOLT) != skills.cend();
 
     //Choose attack method, order set priority
-    double attack_range = unit.getRadius(); //Depend on skill
+    double attack_range; //Depend on skill
     double missile_radius = 0;
     model::ActionType chosen = model::ACTION_NONE;
 
