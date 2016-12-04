@@ -17,7 +17,9 @@ set(sources
     src/ExWorld.cpp
     src/Canvas.cpp
     src/PotentialField.cpp
+
     src/MyLivingUnit.cpp
+    src/MyBonus.cpp
 )
 file(GLOB headers include/*.h)
 

@@ -8,6 +8,13 @@
 
 constexpr double pi = 3.14159265358979323846;
 
+constexpr double EPS = 1e-7;
+
+inline constexpr bool eps_equal(double d1, double d2) {
+    return (d1 - d2) < EPS && (d1 - d2) > -EPS;
+}
+
+
 namespace geom {
 
 inline constexpr double sqr(double x) {

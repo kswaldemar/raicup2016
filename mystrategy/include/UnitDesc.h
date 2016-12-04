@@ -24,11 +24,6 @@ struct RunawayUnit {
     double speed;
 };
 
-struct BonusDesc {
-    geom::Point2D pt;
-    int time; //Remaining time before appearing
-};
-
 /**
  * Invisible tower description
  */

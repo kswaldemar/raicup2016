@@ -37,11 +37,14 @@ ExWorld::ExWorld(const model::World &world, const model::Game &game)
 
         m_shadow_towers.push_back(tds);
     }
+
+    m_bonuses.emplace_back(1200, 1200, world.getTickIndex());
+    m_bonuses.emplace_back(2800, 2800, world.getTickIndex());
 }
 
 void ExWorld::update_world(const model::Wizard &self, const model::World &world, const model::Game &game) {
     const int my_faction = world.getMyPlayer().getFaction();
-    m_self_radius = self.getRadius();
+    self.getRadius();
 
     //Update hostile creeps
     m_en_creeps.clear();
@@ -63,7 +66,21 @@ void ExWorld::update_world(const model::Wizard &self, const model::World &world,
         }
     }
 
-    //Update obstacles and FOV
+    update_obstacles_and_fov(world);
+
+    update_shadow_towers(world);
+
+    update_bonuses(world);
+
+    update_wizards_speed_factors(world, game);
+
+    m_canvas_origin = {self.getX(), self.getY()};
+    update_canvas(m_canvas_origin);
+}
+
+void ExWorld::update_obstacles_and_fov(const World &world)  {
+    int my_faction = world.getMyPlayer().getFaction();
+
     m_obstacles.clear();
     m_fov.clear();
     for (const auto &i : world.getMinions()) {
@@ -112,58 +129,6 @@ void ExWorld::update_world(const model::Wizard &self, const model::World &world,
     for (const auto &tree : m_trees) {
         m_obstacles.push_back(tree);
     }
-
-
-    update_shadow_towers(world);
-
-
-    //Calculate wizards speed factor
-    for (const auto &wizard : world.getWizards()) {
-        double factor = 1.0;
-
-        //Check for haste
-        const auto &statuses = wizard.getStatuses();
-        for (const auto &st : statuses) {
-            if (st.getType() == model::STATUS_HASTENED) {
-                factor += game.getHastenedMovementBonusFactor();
-                break;
-            }
-        }
-
-        //Passive skills
-        for (const auto &skill : wizard.getSkills()) {
-            if (skill == model::SKILL_MOVEMENT_BONUS_FACTOR_PASSIVE_1
-                || skill == model::SKILL_MOVEMENT_BONUS_FACTOR_PASSIVE_2) {
-                factor += game.getMovementBonusFactorPerSkillLevel();
-            }
-        }
-
-        //Allies aura
-        int max_aura = 0;
-        for (const auto &ally : world.getWizards()) {
-            if (ally.getFaction() != wizard.getFaction()) {
-                continue;
-            }
-            for (const auto &skill : ally.getSkills()) {
-                if (ally.getDistanceTo(wizard) <= game.getAuraSkillRange()
-                    && (skill == model::SKILL_MOVEMENT_BONUS_FACTOR_AURA_1
-                        || skill == model::SKILL_MOVEMENT_BONUS_FACTOR_AURA_2)) {
-
-                    max_aura = std::max<int>(model::SKILL_MOVEMENT_BONUS_FACTOR_AURA_1, max_aura);
-                }
-            }
-        }
-        if (max_aura > 0) {
-            max_aura -= model::SKILL_MOVEMENT_BONUS_FACTOR_AURA_1;
-            factor += game.getMovementBonusFactorPerSkillLevel() * (max_aura + 1);
-        }
-
-        assert(wizard.getId() > 0 && wizard.getId() <= 10);
-        m_wizard_speed_factor[wizard.getId()] = factor;
-    }
-
-    m_canvas_origin = {self.getX(), self.getY()};
-    update_canvas(m_canvas_origin);
 }
 
 void ExWorld::update_canvas(const geom::Point2D &origin) {
@@ -238,6 +203,71 @@ void ExWorld::update_shadow_towers(const World &world) {
     }
 }
 
+void ExWorld::update_bonuses(const model::World &world) {
+    for (auto &b : m_bonuses) {
+        b.update(world.getTickIndex());
+        if (point_in_team_vision(b.getX(), b.getY()) && b.getRemainingTime() == 0) {
+            bool visible = false;
+            for (const auto &i : world.getBonuses()) {
+                if (eps_equal(i.getX(), b.getX()) && eps_equal(i.getY(), b.getY())) {
+                    visible = true;
+                    break;
+                }
+            }
+            if (!visible) {
+                b.setTaken();
+            }
+        }
+    }
+}
+
+void ExWorld::update_wizards_speed_factors(const model::World &world, const model::Game &game) {
+    //Calculate wizards speed factor
+    for (const auto &wizard : world.getWizards()) {
+        double factor = 1.0;
+
+        //Check for haste
+        const auto &statuses = wizard.getStatuses();
+        for (const auto &st : statuses) {
+            if (st.getType() == model::STATUS_HASTENED) {
+                factor += game.getHastenedMovementBonusFactor();
+                break;
+            }
+        }
+
+        //Passive skills
+        for (const auto &skill : wizard.getSkills()) {
+            if (skill == model::SKILL_MOVEMENT_BONUS_FACTOR_PASSIVE_1
+                || skill == model::SKILL_MOVEMENT_BONUS_FACTOR_PASSIVE_2) {
+                factor += game.getMovementBonusFactorPerSkillLevel();
+            }
+        }
+
+        //Allies aura
+        int max_aura = 0;
+        for (const auto &ally : world.getWizards()) {
+            if (ally.getFaction() != wizard.getFaction()) {
+                continue;
+            }
+            for (const auto &skill : ally.getSkills()) {
+                if (ally.getDistanceTo(wizard) <= game.getAuraSkillRange()
+                    && (skill == model::SKILL_MOVEMENT_BONUS_FACTOR_AURA_1
+                        || skill == model::SKILL_MOVEMENT_BONUS_FACTOR_AURA_2)) {
+
+                    max_aura = std::max<int>(model::SKILL_MOVEMENT_BONUS_FACTOR_AURA_1, max_aura);
+                }
+            }
+        }
+        if (max_aura > 0) {
+            max_aura -= model::SKILL_MOVEMENT_BONUS_FACTOR_AURA_1;
+            factor += game.getMovementBonusFactorPerSkillLevel() * (max_aura + 1);
+        }
+
+        //assert(wizard.getId() > 0 && wizard.getId() <= 10);
+        m_wizard_speed_factor[wizard.getId()] = factor;
+    }
+}
+
 const std::vector<const model::Minion *> &ExWorld::get_hostile_creeps() const {
     return m_en_creeps;
 }
@@ -252,6 +282,10 @@ const std::vector<MyLivingUnit> &ExWorld::get_obstacles() const {
 
 const std::vector<TowerDesc> &ExWorld::get_hostile_towers() const {
     return m_shadow_towers;
+}
+
+const std::vector<MyBonus> &ExWorld::get_bonuses() const {
+    return m_bonuses;
 }
 
 bool ExWorld::check_no_collision(geom::Point2D obj, double radius, const MyLivingUnit **out_obstacle) const {

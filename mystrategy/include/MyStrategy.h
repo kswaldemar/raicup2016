@@ -47,8 +47,6 @@ public:
      */
     void update_danger_map();
 
-    void update_bonuses();
-
     void each_tick_update(const model::Wizard &self, const model::World &world, const model::Game &game);
 
     void smooth_path(const geom::Point2D &me, std::list<geom::Point2D> &path);
@@ -61,8 +59,6 @@ private:
     //Danger map
     fields::FieldMap m_danger_map = fields::FieldMap(fields::FieldMap::ADD);
     std::array<MovementHandler, BH_COUNT> m_bhs;
-    BonusDesc m_bns_top;
-    BonusDesc m_bns_bottom;
 };
 
 #endif

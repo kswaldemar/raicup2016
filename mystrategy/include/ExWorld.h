@@ -10,6 +10,7 @@
 #include "MyLivingUnit.h"
 #include "model/World.h"
 #include "model/Game.h"
+#include "MyBonus.h"
 #include <array>
 #include <list>
 #include <set>
@@ -34,6 +35,8 @@ public:
 
     const std::vector<TowerDesc> &get_hostile_towers() const;
 
+    const std::vector<MyBonus> &get_bonuses() const;
+
     bool check_no_collision(geom::Point2D obj, double radius, const MyLivingUnit **out_obstacle = nullptr) const;
 
     bool check_in_team_vision(const geom::Point2D &pt) const;
@@ -52,19 +55,23 @@ private:
 
     void update_canvas(const geom::Point2D &origin);
 
+    void update_bonuses(const model::World &world);
+
+    void update_obstacles_and_fov(const model::World &world);
+
+    void update_wizards_speed_factors(const model::World &world, const model::Game &game);
+
     const double m_map_size;
     std::list<MyLivingUnit> m_trees;
     std::vector<MyLivingUnit> m_obstacles;
+    std::vector<MyBonus> m_bonuses;
     std::set<int64_t> m_known_trees;
     //Field of view description - point, view range
     std::vector<std::pair<const geom::Point2D, double>> m_fov;
     std::vector<const model::Minion*> m_en_creeps;
     std::vector<const model::Wizard*> m_en_wizards;
-
     std::vector<TowerDesc> m_shadow_towers;
     std::array<double, 10> m_wizard_speed_factor;
-
-    double m_self_radius;
     geom::Point2D m_canvas_origin;
     Canvas m_im_draw;
 };

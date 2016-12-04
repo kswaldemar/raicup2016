@@ -13,12 +13,7 @@ using namespace model;
 using namespace std;
 using namespace geom;
 
-const double EPS = 1e-7;
-
-bool eps_equal(double d1, double d2) {
-    const double diff = d1 - d2;
-    return diff < EPS && diff > -EPS;
-}
+//const double EPS = 1e-7;
 
 MyStrategy::MyStrategy() {
 }
@@ -107,47 +102,35 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         //Here check for bonuses time and go to one of them
         bool will_go = false;
         if (m_bhs[BH_EARN_BONUS].is_path_spoiled()) {
-            geom::Vec2D shift_top = m_bns_top.pt - me;
-            geom::Vec2D shift_bottom = m_bns_bottom.pt - me;
-            double my_speed = game.getWizardForwardSpeed() * m_i.ew->get_wizard_movement_factor(self);
+            const double my_speed = game.getWizardForwardSpeed() * m_i.ew->get_wizard_movement_factor(self);
             const double max_dist = 1600;
-            double td = shift_top.len() - game.getBonusRadius();
-            double tb = shift_bottom.len() - game.getBonusRadius();
-
-            static const int bonus_overtime = 100;
-            int time_bottom = static_cast<int>(ceil(tb / my_speed));
-            bool want_bottom = tb <= max_dist && m_bns_bottom.time - time_bottom <= bonus_overtime;
-            bool want_top = td <= max_dist && m_bns_top.time - static_cast<int>(ceil(td / my_speed)) <= bonus_overtime;
-
-            if (want_bottom && want_top) {
-                want_bottom = tb <= td;
-                want_top = td <= tb;
+            const int bonus_overtime = 100;
+            const MyBonus *best = nullptr;
+            double min_dist = 1e5;
+            for (const auto &b : m_i.ew->get_bonuses()) {
+                const double dist = self.getDistanceTo(b.getX(), b.getY()) - game.getBonusRadius();
+                if (dist >= max_dist || dist >= min_dist) {
+                    continue;
+                }
+                int reach_time = static_cast<int>(ceil(dist / my_speed));
+                int diff = b.getRemainingTime() - reach_time;
+                if (diff <= bonus_overtime) {
+                    best = &b;
+                    min_dist = dist;
+                }
             }
 
-            if (want_top) {
-                m_bhs[BH_EARN_BONUS].update_target(m_bns_top.pt, game.getBonusRadius() + 5);
-                auto way = m_pf->find_way(m_bns_top.pt, game.getBonusRadius() + 5);
+            if (best != nullptr) {
+                m_bhs[BH_EARN_BONUS].update_target(best->getPoint(), game.getBonusRadius() + 5);
+                auto way = m_pf->find_way(best->getPoint(), game.getBonusRadius() + 5);
                 smooth_path(me, way);
                 m_bhs[BH_EARN_BONUS].load_path(
                     std::move(way),
-                    m_bns_top.pt,
+                    best->getPoint(),
                     game.getBonusRadius() + 5
                 );
-
-                will_go = true;
-            } else if (want_bottom) {
-                m_bhs[BH_EARN_BONUS].update_target(m_bns_bottom.pt, game.getBonusRadius() + 4);
-                auto way = m_pf->find_way(m_bns_bottom.pt, game.getBonusRadius() + 4);
-                smooth_path(me, way);
-                m_bhs[BH_EARN_BONUS].load_path(
-                    std::move(way),
-                    m_bns_bottom.pt,
-                    game.getBonusRadius() + 5
-                );
-
                 will_go = true;
             }
-
         }
 
         if (!m_bhs[BH_EARN_BONUS].is_path_spoiled()) {
@@ -167,23 +150,17 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     }
 
     //Prevent bonus denying
-    if (m_bns_top.time > 0 && m_bns_top.time < 26) {
-        m_danger_map.add_field(std::make_unique<fields::ConstField>(
-            m_bns_top.pt, 0, game.getBonusRadius() + self.getRadius(), 100
-        ));
-        m_danger_map.add_field(std::make_unique<fields::LinearField>(
-            m_bns_top.pt, 0, game.getBonusRadius() + self.getRadius(), 1000
-        ));
+    for (const auto &b : m_i.ew->get_bonuses()) {
+        int rem_time = b.getRemainingTime();
+        if (rem_time > 0 && rem_time < 26) {
+            m_danger_map.add_field(std::make_unique<fields::ConstField>(
+                b.getPoint(), 0, game.getBonusRadius() + self.getRadius(), 100
+            ));
+            m_danger_map.add_field(std::make_unique<fields::LinearField>(
+                b.getPoint(), 0, game.getBonusRadius() + self.getRadius(), 1000
+            ));
+        }
     }
-    if (m_bns_bottom.time > 0 && m_bns_bottom.time < 26) {
-        m_danger_map.add_field(std::make_unique<fields::ConstField>(
-            m_bns_bottom.pt, 0, game.getBonusRadius() + self.getRadius(), 100
-        ));
-        m_danger_map.add_field(std::make_unique<fields::LinearField>(
-            m_bns_bottom.pt, 0, game.getBonusRadius() + self.getRadius(), 1000
-        ));
-    }
-
 
     geom::Point2D waypoint{0, 0};
 
@@ -310,10 +287,11 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
 #ifdef RUNNING_LOCAL
     {
         char buf[20];
-        sprintf(buf, "%d", m_bns_top.time);
-        VISUAL(text(m_bns_top.pt.x, m_bns_top.pt.y + 50, buf, 0x111199));
-        sprintf(buf, "%d", m_bns_bottom.time);
-        VISUAL(text(m_bns_bottom.pt.x, m_bns_bottom.pt.y + 50, buf, 0x111199));
+        auto bonuses = m_i.ew->get_bonuses();
+        sprintf(buf, "%d", bonuses[0].getRemainingTime());
+        VISUAL(text(bonuses[0].getX(), bonuses[0].getY() + 50, buf, 0x111199));
+        sprintf(buf, "%d", bonuses[1].getRemainingTime());
+        VISUAL(text(bonuses[1].getX(), bonuses[1].getY() + 50, buf, 0x111199));
     }
 #endif
 
@@ -352,9 +330,9 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
 
     VISUAL(endPost());
 
-    if (world.getTickIndex() % 100 == 0) {
-        LOG("Try to learn %d\n", move.getSkillToLearn());
-    }
+    //if (world.getTickIndex() % 100 == 0) {
+    //    LOG("Try to learn %d\n", move.getSkillToLearn());
+    //}
 
 
 }
@@ -375,11 +353,6 @@ bool MyStrategy::initialize_strategy(const model::Wizard &self, const model::Wor
 
     m_bhs[BH_MINIMIZE_DANGER].PATH_SPOIL_TIME = 100;
 
-    m_bns_top.pt = {1200, 1200};
-    m_bns_top.time = 2502;
-    m_bns_bottom.pt = {2800, 2800};
-    m_bns_bottom.time = m_bns_top.time;
-
     return true;
 }
 
@@ -399,9 +372,6 @@ void MyStrategy::each_tick_update(const model::Wizard &self, const model::World 
 
     //Calculate danger map
     update_danger_map();
-    //Update bonuses info
-    //TODO: Move to ExWorld
-    update_bonuses();
 
     m_pf->update_info(m_i, m_danger_map);
     m_ev->update_info(m_i);
@@ -620,46 +590,6 @@ void MyStrategy::visualise_field_maps(const std::vector<const fields::FieldMap *
         }
     }
 #endif
-}
-
-void MyStrategy::update_bonuses() {
-
-    //Check if bonuses in vision range and exists
-    bool bottom_up = false;
-    bool top_up = false;
-    for (const auto &bns : m_i.w->getBonuses()) {
-        if (bns.getDistanceTo(m_bns_top.pt.x, m_bns_top.pt.y) <= m_i.g->getBonusRadius()) {
-            m_bns_top.time = 0; //Already appeared
-            top_up = true;
-        }
-        if (bns.getDistanceTo(m_bns_bottom.pt.x, m_bns_bottom.pt.y) <= m_i.g->getBonusRadius()) {
-            m_bns_bottom.time = 0; //Already appeared
-            bottom_up = true;
-        }
-    }
-
-    int bonus_interval = m_i.g->getBonusAppearanceIntervalTicks();
-    if (m_i.ew->check_in_team_vision(m_bns_top.pt) && !top_up && m_bns_top.time == 0) {
-        //In vision but not updated, so it was taken
-        int next_tick = ((m_i.w->getTickIndex() + bonus_interval - 1) / bonus_interval) * bonus_interval;
-        m_bns_top.time = next_tick - m_i.w->getTickIndex() + 2;
-        LOG("Top bonus was taken!\n");
-    }
-
-    if (m_i.ew->check_in_team_vision(m_bns_bottom.pt) && !bottom_up && m_bns_bottom.time == 0) {
-        //In vision but not updated, so it was taken
-        int next_tick = ((m_i.w->getTickIndex() + bonus_interval - 1) / bonus_interval) * bonus_interval;
-        m_bns_bottom.time = next_tick - m_i.w->getTickIndex() + 2;
-        LOG("Bottom bonus was taken! next time = %d\n", m_bns_bottom.time);
-    }
-
-    //Decrease remaining time
-    if (m_bns_bottom.time > 0) {
-        --m_bns_bottom.time;
-    }
-    if (m_bns_top.time > 0) {
-        --m_bns_top.time;
-    }
 }
 
 void MyStrategy::smooth_path(const geom::Point2D &me, std::list<geom::Point2D> &path) {
