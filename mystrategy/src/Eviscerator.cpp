@@ -86,9 +86,9 @@ int Eviscerator::choose_enemy() {
                 cost = 1800;
                 break;
             case EnemyDesc::Type::TOWER:
-                if (unit.getLife() < 50) {
+                if (unit.getLife() < 250) {
                     cost = 800;
-                } else if (unit.getLife() < 25) {
+                } else if (unit.getLife() < 100) {
                     cost = 1500;
                 }
                 break;
