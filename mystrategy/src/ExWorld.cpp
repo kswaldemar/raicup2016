@@ -281,63 +281,7 @@ bool ExWorld::line_of_sight(double x1, double y1, double x2, double y2) const {
     auto tr1 = m_im_draw.to_internal(pt1.x, pt1.y);
     auto tr2 = m_im_draw.to_internal(pt2.x, pt2.y);
 
-    //Bresenham's line algorithm
-    int w = tr2.x - tr1.x;
-    int h = tr2.y - tr1.y;
-    int dx1 = 0;
-    int dy1 = 0;
-    int dx2 = 0;
-    int dy2 = 0;
-    if (w != 0) {
-        dx1 = w < 0 ? -1 : 1;
-        dx2 = w < 0 ? -1 : 1;
-    }
-    if (h != 0) {
-        dy1 = h < 0 ? -1 : 1;
-    }
-
-    int longest = std::abs(w);
-    int shortest = std::abs(h);
-    if (longest <= shortest) {
-        std::swap(longest, shortest);
-        if (h < 0) {
-            dy2 = -1;
-        } else if (h > 0) {
-            dy2 = 1;
-        }
-        dx2 = 0;
-    }
-    int numerator = longest >> 1;
-    int x = tr1.x;
-    int y = tr1.y;
-    bool has_pixel = false;
-    for (int i = 0; i <= longest; i++) {
-
-        has_pixel = m_im_draw.get_pixel(x, y);
-
-        numerator += shortest;
-        if (numerator >= longest) {
-            numerator -= longest;
-            x += dx1;
-            //Bold line check
-            has_pixel = has_pixel || m_im_draw.get_pixel(x, y);
-            y += dy1;
-        } else {
-            x += dx2;
-            has_pixel = has_pixel || m_im_draw.get_pixel(x, y);
-            y += dy2;
-        }
-
-        if (has_pixel) {
-            return false;
-        }
-
-        double wx = x * m_im_draw.GRID_SIZE + m_canvas_origin.x - shift.x;
-        double wy = -(y * m_im_draw.GRID_SIZE - shift.y) + m_canvas_origin.y;
-        VISUAL(fillCircle(wx, wy, m_im_draw.GRID_SIZE / 2, 0x881100));
-    }
-
-    return true;
+    return m_im_draw.check_line_intersection(tr1.x, tr1.y, tr2.x, tr2.y);
 }
 
 void ExWorld::show_me_canvas() const {

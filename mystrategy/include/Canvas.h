@@ -32,6 +32,11 @@ public:
 
     bool is_correct_point(const geom::CellCoord &pt) const;
 
+    //Same as draw function, but not draw anything and return true if there was pixel detected when trying to set pixel
+    bool check_circle_intersection(int x0, int y0, int radius) const;
+
+    bool check_line_intersection(int x1, int y1, int x2, int y2) const;
+
 private:
 
     bool is_correct_point(int x, int y) const;
