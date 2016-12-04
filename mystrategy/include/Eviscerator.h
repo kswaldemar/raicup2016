@@ -38,7 +38,7 @@ public:
 
     struct DestroyDesc {
         const model::LivingUnit *unit;
-        const double att_range;
+        double att_range;
     };
 
     Eviscerator(const InfoPack &info);

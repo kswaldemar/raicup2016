@@ -77,6 +77,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         prev_action = current_action;
         current_action = BH_ATTACK;
         auto description = m_ev->destroy(move);
+        description.att_range -= 4; // TODO: Do it in right way.
         if (self.getDistanceTo(*description.unit) >= description.att_range) {
             m_bhs[BH_ATTACK].update_target(*description.unit);
             if (m_bhs[BH_ATTACK].is_path_spoiled()) {
@@ -274,7 +275,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     }
 
 
-    visualise_field_maps({&m_danger_map/*, &navigation*/}, me);
+    //visualise_field_maps({&m_danger_map/*, &navigation*/}, me);
 
     VISUAL(endPre());
 
@@ -477,9 +478,9 @@ void MyStrategy::update_danger_map() {
     m_danger_map.clear();
     auto &damage_fields = m_danger_map;
 
-    const auto &creeps = m_i.w->getMinions();
-    const auto &wizards = m_i.w->getWizards();
-    const double ME_RETREAT_SPEED = 4.0;
+    const auto &creeps = m_i.ew->get_hostile_creeps();
+    const auto &wizards = m_i.ew->get_hostile_wizards();
+    const double ME_RETREAT_SPEED = m_i.g->getWizardBackwardSpeed() * m_i.ew->get_wizard_movement_factor(*m_i.s);
 
     const auto &add_unit_damage_fields = [&damage_fields](const Point2D &unit_center,
                                                           double attack_range,
@@ -496,54 +497,45 @@ void MyStrategy::update_danger_map() {
     };
 
     const RunawayUnit me{m_i.s->getLife(), m_i.s->getMaxLife(), ME_RETREAT_SPEED};
-    for (const auto &minion : creeps) {
-
-        if (minion.getFaction() == FACTION_NEUTRAL || minion.getFaction() == m_i.s->getFaction()) {
-            continue;
-        }
-
+    for (const Minion *i : creeps) {
         double attack_range;
-        if (minion.getType() == MINION_ORC_WOODCUTTER) {
+        if (i->getType() == MINION_ORC_WOODCUTTER) {
             attack_range = m_i.g->getOrcWoodcutterAttackRange();
         } else {
             attack_range = m_i.g->getFetishBlowdartAttackRange();
         }
         attack_range += m_i.s->getRadius();
 
-        const AttackUnit enemy{minion.getRemainingActionCooldownTicks(),
-                               minion.getCooldownTicks(),
-                               minion.getDamage(),
+        const AttackUnit enemy{i->getRemainingActionCooldownTicks(),
+                               i->getCooldownTicks(),
+                               i->getDamage(),
                                attack_range,
                                m_i.g->getMinionSpeed()};
         double dead_zone_r = Eviscerator::calc_dead_zone(me, enemy);
 
-        if (minion.getType() == MINION_ORC_WOODCUTTER) {
+        if (i->getType() == MINION_ORC_WOODCUTTER) {
             damage_fields.add_field(std::make_unique<fields::ConstField>(
-                Point2D{minion.getX(), minion.getY()},
-                0, minion.getRadius() + m_i.g->getStaffRange(),
+                Point2D{i->getX(), i->getY()},
+                0, i->getRadius() + m_i.g->getStaffRange(),
                 70
             ));
         } else {
             damage_fields.add_field(std::make_unique<fields::ConstField>(
-                Point2D{minion.getX(), minion.getY()},
+                Point2D{i->getX(), i->getY()},
                 0, m_i.g->getFetishBlowdartAttackRange() + m_i.s->getRadius(),
                 2
             ));
         }
     }
-    for (const auto &wizard : wizards) {
-        if (wizard.getFaction() == FACTION_NEUTRAL || wizard.getFaction() == m_i.s->getFaction()) {
-            continue;
-        }
-
-        const double attack_range = wizard.getCastRange() + m_i.s->getRadius() + m_i.g->getMagicMissileRadius();
-        const AttackUnit enemy{wizard.getRemainingActionCooldownTicks(),
+    for (const auto &i : wizards) {
+        const double attack_range = i->getCastRange() + m_i.s->getRadius() + m_i.g->getMagicMissileRadius();
+        const AttackUnit enemy{i->getRemainingActionCooldownTicks(),
                                m_i.g->getMagicMissileCooldownTicks(),
                                m_i.g->getMagicMissileDirectDamage(),
                                attack_range,
                                m_i.g->getWizardForwardSpeed()};
         double dead_zone_r = Eviscerator::calc_dead_zone(me, enemy);
-        add_unit_damage_fields({wizard.getX(), wizard.getY()}, attack_range, dead_zone_r);
+        add_unit_damage_fields({i->getX(), i->getY()}, attack_range, dead_zone_r);
     }
 
     for (const auto &tower : m_i.ew->get_hostile_towers()) {
