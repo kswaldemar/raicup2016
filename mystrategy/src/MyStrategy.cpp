@@ -59,40 +59,6 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     //Pre actions
     VISUAL(beginPre());
 
-    visualise_danger_map(m_danger_map, me);
-
-    //if (world.getTickIndex() % 2 == 0) {
-    //    m_i.ew->show_me_canvas();
-    //}
-
-    VISUAL(endPre());
-
-    VISUAL(beginPost());
-
-
-    //const bool sight = m_i.ew->line_of_sight(me.x, me.y, 600, 3800);
-    //LOG("I'm %s see point!\n", sight ? "" : "don't");
-    //
-    //m_i.ew->show_me_canvas();
-
-
-#ifdef RUNNING_LOCAL
-    {
-        char buf[20];
-        sprintf(buf, "%d", m_bns_top.time);
-        VISUAL(text(m_bns_top.pt.x, m_bns_top.pt.y + 50, buf, 0x111199));
-        sprintf(buf, "%d", m_bns_bottom.time);
-        VISUAL(text(m_bns_bottom.pt.x, m_bns_bottom.pt.y + 50, buf, 0x111199));
-    }
-#endif
-
-#ifdef RUNNING_LOCAL
-    for (const auto &i : m_i.ew->get_hostile_towers()) {
-        char buf[20];
-        sprintf(buf, "%d", i.rem_cooldown);
-        VISUAL(text(i.x, i.y + 50, buf, 0x00CC00));
-    }
-#endif
     Behaviour current_action = BH_COUNT;
     static Behaviour prev_action = BH_COUNT;
 
@@ -101,10 +67,10 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
 
     fields::FieldMap navigation(fields::FieldMap::MIN);
     const double NAV_K = -2.5;
-    int nav_radius = PathFinder::GRID_SIZE * 2;
+    int nav_radius = 5000;
 
     int best_enemy = m_ev->choose_enemy();
-    const bool have_target = best_enemy > 0;
+    bool have_target = best_enemy > 0;
     if (danger_level <= config::ATTACK_THRESH && current_action == BH_COUNT && have_target) {
         //Danger is ok to attack
         //Enemy choosen
@@ -124,7 +90,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             }
             dir = m_bhs[BH_ATTACK].get_next_direction(self);
             navigation.add_field(std::make_unique<fields::LinearField>(
-                me + dir, 0, dir.len(), NAV_K * dir.len()
+                me + dir, 0, nav_radius, NAV_K * nav_radius
             ));
         } else {
             if (self.getDistanceTo(*description.unit) <= description.att_range) {
@@ -186,7 +152,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             dir = m_bhs[BH_EARN_BONUS].get_next_direction(self);
             navigation.clear();
             navigation.add_field(std::make_unique<fields::LinearField>(
-                me + dir, 0, dir.len(), NAV_K * dir.len()
+                me + dir, 0, nav_radius, NAV_K * nav_radius
             ));
         }
 
@@ -195,6 +161,8 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             current_action = BH_EARN_BONUS;
         }
     }
+
+    geom::Point2D waypoint{0, 0};
 
     if (danger_level <= config::SCOUT_THRESH && current_action == BH_COUNT) {
         //Move by waypoints
@@ -215,10 +183,12 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         dir = m_bhs[BH_SCOUT].get_next_direction(self);
         navigation.clear();
         navigation.add_field(std::make_unique<fields::LinearField>(
-            me + dir, 0, dir.len(), NAV_K * dir.len()
+            me + dir, 0, nav_radius, NAV_K * nav_radius
         ));
 
-        //VISUAL(line(self.getX(), self.getY(), self.getX() + dir.x, self.getY() + dir.y, 0xFF0000));
+        waypoint = me + dir;
+
+        VISUAL(line(self.getX(), self.getY(), self.getX() + dir.x, self.getY() + dir.y, 0xFF0000));
     }
 
     if (current_action == BH_COUNT || current_action == BH_MINIMIZE_DANGER) {
@@ -227,31 +197,33 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
 
 
         auto wp_prev = m_pf->get_previous_waypoint();
-        VISUAL(circle(wp_prev.x, wp_prev.y, PathFinder::WAYPOINT_RADIUS, 0x002211));
-        m_danger_map.add_field(
-            std::make_unique<fields::LinearField>(
-                wp_prev, 0, 500, -13
-            )
-        );
-
-        if (m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled() && not_moved) {
-            //Possibly stuck in place
-            auto way = m_pf->find_way(wp_prev, PathFinder::WAYPOINT_RADIUS - PathFinder::GRID_SIZE);
-            smooth_path(me, way);
-            m_bhs[BH_MINIMIZE_DANGER].update_target(wp_prev, PathFinder::WAYPOINT_RADIUS);
-            m_bhs[BH_MINIMIZE_DANGER].load_path(
-                std::move(way),
-                wp_prev,
-                PathFinder::WAYPOINT_RADIUS
+        if (wp_prev.x > 0 && wp_prev.y > 0) {
+            VISUAL(circle(wp_prev.x, wp_prev.y, PathFinder::WAYPOINT_RADIUS, 0x002211));
+            m_danger_map.add_field(
+                std::make_unique<fields::LinearField>(
+                    wp_prev, 0, 500, -13
+                )
             );
-        }
 
-        if (!m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled()) {
-            dir = m_bhs[BH_MINIMIZE_DANGER].get_next_direction(self);
-            navigation.clear();
-            navigation.add_field(std::make_unique<fields::LinearField>(
-                me + dir, 0, dir.len(), NAV_K * dir.len()
-            ));
+            if (m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled() && not_moved) {
+                //Possibly stuck in place
+                auto way = m_pf->find_way(wp_prev, PathFinder::WAYPOINT_RADIUS - PathFinder::GRID_SIZE);
+                smooth_path(me, way);
+                m_bhs[BH_MINIMIZE_DANGER].update_target(wp_prev, PathFinder::WAYPOINT_RADIUS);
+                m_bhs[BH_MINIMIZE_DANGER].load_path(
+                    std::move(way),
+                    wp_prev,
+                    PathFinder::WAYPOINT_RADIUS
+                );
+            }
+
+            if (!m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled()) {
+                dir = m_bhs[BH_MINIMIZE_DANGER].get_next_direction(self);
+                navigation.clear();
+                navigation.add_field(std::make_unique<fields::LinearField>(
+                    me + dir, 0, nav_radius, NAV_K * nav_radius
+                ));
+            }
         }
     }
 
@@ -260,64 +232,28 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         m_pf->move_along(dir, move, have_target);
     }
 
-    //static geom::Point2D future_pos{0, 0};
-    //
-    ////if (!not_moved && (!eps_equal(future_pos.x, me.x) || !eps_equal(future_pos.y, me.y))) {
-    ////    LOG("Collision detected! %d\n", m_i.ew->check_no_collision(future_pos, self.getRadius()));
-    ////}
-    //
-    //future_pos = me + dir;
-    //
-    //if (!m_i.ew->check_no_collision(future_pos, self.getRadius())) {
-    //    LOG("ERROR: Check no collision failed. Destination (%3.1lf, %3.1lf) will lead to collision. "
-    //            "Vector (%3.1lf, %3.1lf); Me (%3.1lf, %3.1lf); Angle %3.5lf\n",
-    //        future_pos.x,
-    //        future_pos.y,
-    //        dir.x,
-    //        dir.y,
-    //        me.x,
-    //        me.y,
-    //        self.getAngle());
-    //} else {
-    //    LOG("Tick %d; My position (%3.7lf, %3.7lf); Future position (%3.7lf, %3.7lf); Vector (%3.7lf, %3.7lf);\n",
-    //        world.getTickIndex(),
-    //        me.x,
-    //        me.y,
-    //        future_pos.x,
-    //        future_pos.y, dir.x, dir.y);
-    //}
-
-    //return;
-
-    //If we stuck in the tree - destroy it
-    if (not_moved) {
-        double min_dist = 1e9;
-        double min_angle = pi;
-        const model::Tree *target = nullptr;
-        for (const auto &tree : world.getTrees()) {
-            double ang = std::abs(self.getAngleTo(tree));
-            double dist = self.getDistanceTo(tree);
-            if (dist < min_dist || (eps_equal(dist, min_dist) && ang < min_angle)) {
-                min_dist = dist;
-                min_angle = ang;
-                target = &tree;
-            }
-        }
-        if (target && min_dist <= target->getRadius() + game.getStaffRange()) {
-            double ang = self.getAngleTo(*target);
-            if (!have_target && (std::abs(ang) >= game.getStaffSector() / 2.0)) {
-                move.setTurn(ang);
-            }
-            if (std::abs(ang) < game.getStaffSector() / 2.0) {
-                move.setAction(ACTION_STAFF);
-            }
+    //Check tree blocking way
+    SimpleCircle block_obstacle(SimpleCircle::TYPES_COUNT, 0, 0, 0);
+    bool destroy_obstacle = false;
+    if ((waypoint.x > 0 && waypoint.y > 0
+         && !m_i.ew->check_no_collision(waypoint, self.getRadius(), &block_obstacle)) // Obstacle blocking way
+        || (!m_i.ew->check_no_collision(me, self.getRadius() + 4.5, &block_obstacle)
+            && dir.len() <= EPS) // Local minimum because of obstacle
+        ) {
+        //We will meet collision soon
+        VISUAL(fillCircle(waypoint.x, waypoint.y, 10, 0x990000));
+        //TODO: Choose nearest obstacle
+        if (block_obstacle.type == SimpleCircle::STATIC) {
+            m_ev->destroy(move, {block_obstacle.x, block_obstacle.y}, block_obstacle.r);
+            destroy_obstacle = true;
         }
     }
-
-    //Try to destroy enemy, while going to another targets
-    if ((current_action == BH_MINIMIZE_DANGER || current_action == BH_EARN_BONUS) && have_target) {
+    if ((current_action == BH_MINIMIZE_DANGER || current_action == BH_EARN_BONUS) && have_target && !destroy_obstacle) {
+        //Shoot to enemy, when retreating
         m_ev->destroy(move);
     }
+
+
 
     //TODO: Rewrite it
     const auto &skills = self.getSkills();
@@ -337,27 +273,54 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         move.setAction(ACTION_HASTE);
     }
 
+
+    //visualise_field_maps({&m_danger_map/*, &navigation*/}, me);
+
+    VISUAL(endPre());
+
+    VISUAL(beginPost());
+
+
 #ifdef RUNNING_LOCAL
-        dir *= 3;
-        VISUAL(line(self.getX(), self.getY(), self.getX() + dir.x, self.getY() + dir.y, 0xB325DA));
-        char buf[10];
-        char c = 'N';
-        assert(current_action != BH_COUNT);
-        switch (current_action) {
-            case BH_MINIMIZE_DANGER:c = 'M';
-                break;
-            case BH_ATTACK:c = 'A';
-                break;
-            case BH_SCOUT:c = 'R';
-                break;
-            case BH_EARN_BONUS: c = 'B';
-                break;
-        }
-        sprintf(buf, "%c %3.1lf%%", c, m_danger_map.get_value(self.getX(), self.getY()));
-        VISUAL(text(self.getX() - 70, self.getY() - 60, buf, 0xFF0000));
-        //Vec2D spd{self.getSpeedX(), self.getSpeedY()};
-        //sprintf(buf, "spd %3.1lf", spd.len());
-        //VISUAL(text(self.getX(), self.getY() - 70, buf, 0x009911));
+    {
+        char buf[20];
+        sprintf(buf, "%d", m_bns_top.time);
+        VISUAL(text(m_bns_top.pt.x, m_bns_top.pt.y + 50, buf, 0x111199));
+        sprintf(buf, "%d", m_bns_bottom.time);
+        VISUAL(text(m_bns_bottom.pt.x, m_bns_bottom.pt.y + 50, buf, 0x111199));
+    }
+#endif
+
+#ifdef RUNNING_LOCAL
+    for (const auto &i : m_i.ew->get_hostile_towers()) {
+        char buf[20];
+        sprintf(buf, "%d", i.rem_cooldown);
+        VISUAL(text(i.x, i.y + 50, buf, 0x00CC00));
+    }
+#endif
+
+
+#ifdef RUNNING_LOCAL
+    dir *= 3;
+    VISUAL(line(self.getX(), self.getY(), self.getX() + dir.x, self.getY() + dir.y, 0xB325DA));
+    char buf[10];
+    char c = 'N';
+    assert(current_action != BH_COUNT);
+    switch (current_action) {
+        case BH_MINIMIZE_DANGER:c = 'M';
+            break;
+        case BH_ATTACK:c = 'A';
+            break;
+        case BH_SCOUT:c = 'R';
+            break;
+        case BH_EARN_BONUS: c = 'B';
+            break;
+    }
+    sprintf(buf, "%c %3.1lf%%", c, m_danger_map.get_value(self.getX(), self.getY()));
+    VISUAL(text(self.getX() - 70, self.getY() - 60, buf, 0xFF0000));
+    //Vec2D spd{self.getSpeedX(), self.getSpeedY()};
+    //sprintf(buf, "spd %3.1lf", spd.len());
+    //VISUAL(text(self.getX(), self.getY() - 70, buf, 0x009911));
 #endif
 
 
@@ -564,7 +527,7 @@ void MyStrategy::update_danger_map() {
             damage_fields.add_field(std::make_unique<fields::ConstField>(
                 Point2D{minion.getX(), minion.getY()},
                 0, m_i.g->getFetishBlowdartAttackRange() + m_i.s->getRadius(),
-                10
+                2
             ));
         }
     }
@@ -613,7 +576,7 @@ void MyStrategy::update_danger_map() {
     }
 }
 
-void MyStrategy::visualise_danger_map(const fields::FieldMap &danger, const geom::Point2D &center) {
+void MyStrategy::visualise_field_maps(const std::vector<const fields::FieldMap *> &fmaps, const geom::Point2D &center) {
 #ifdef RUNNING_LOCAL
     const int GRID_SIZE = 30;
     const int half = GRID_SIZE / 2;
@@ -622,20 +585,24 @@ void MyStrategy::visualise_danger_map(const fields::FieldMap &danger, const geom
         for (int y = -600; y <= 600; y += GRID_SIZE) {
             double x_a = center.x + x;
             double y_a = center.y + y;
-            double force = danger.get_value(x_a, y_a);
-            if (force > config::DAMAGE_MAX_FEAR) {
-                force = config::DAMAGE_MAX_FEAR;
+            double force = 0;
+            for (const auto &fmap : fmaps) {
+                force += fmap->get_value(x_a, y_a);
             }
-            if (force < -config::DAMAGE_MAX_FEAR) {
-                force = -config::DAMAGE_MAX_FEAR;
+            force = std::min(force, 255.0);
+            force = std::max(force, -255.0);
+
+            if (eps_equal(force, 0)) {
+                continue;
             }
 
-            int color = static_cast<uint8_t>((255.0 / config::DAMAGE_MAX_FEAR) * std::abs(force));
+            int color = static_cast<uint8_t>(std::abs(force));
             color = 255 - color;
             if (force < 0) {
                 color = (color << 16) | 0xff00 | color;
             } else {
-                color = (color << 16) | (color << 8) | color;
+                //color = (color << 16) | (color << 8) | color;
+                color = (color << 16) | (color << 8) | 0xff;
             }
 
 

@@ -67,7 +67,7 @@ void ExWorld::update_world(const model::Wizard &self, const model::World &world,
     m_obstacles.clear();
     m_fov.clear();
     for (const auto &i : world.getMinions()) {
-        m_obstacles.push_back(&i);
+        m_obstacles.emplace_back(SimpleCircle::DYNAMIC, i.getX(), i.getY(), i.getRadius());
 
         if (i.getFaction() == my_faction) {
             m_fov.emplace_back(geom::Point2D{i.getX(), i.getY()}, i.getVisionRange());
@@ -75,7 +75,7 @@ void ExWorld::update_world(const model::Wizard &self, const model::World &world,
     }
     for (const auto &i : world.getWizards()) {
         if (!i.isMe()) {
-            m_obstacles.push_back(&i);
+            m_obstacles.emplace_back(SimpleCircle::DYNAMIC, i.getX(), i.getY(), i.getRadius());
         }
 
         if (i.getFaction() == my_faction) {
@@ -83,14 +83,14 @@ void ExWorld::update_world(const model::Wizard &self, const model::World &world,
         }
     }
     for (const auto &i : world.getBuildings()) {
-        m_obstacles.push_back(&i);
+        m_obstacles.emplace_back(SimpleCircle::STATIC, i.getX(), i.getY(), i.getRadius());
 
         if (i.getFaction() == my_faction) {
             m_fov.emplace_back(geom::Point2D{i.getX(), i.getY()}, i.getVisionRange());
         }
     }
     for (const auto &i : world.getTrees()) {
-        m_obstacles.push_back(&i);
+        m_obstacles.emplace_back(SimpleCircle::STATIC, i.getX(), i.getY(), i.getRadius());
     }
 
     update_shadow_towers(world);
@@ -148,13 +148,13 @@ void ExWorld::update_world(const model::Wizard &self, const model::World &world,
 void ExWorld::update_canvas(const geom::Point2D &origin) {
     m_im_draw.clear();
     for (const auto &i : m_obstacles) {
-        geom::Point2D t = {i->getX() - origin.x, i->getY() - origin.y};
+        geom::Point2D t = {i.x - origin.x, i.y - origin.y};
         t.x += m_im_draw.MAP_SIZE / 2;
         t.y = -t.y;
         t.y += m_im_draw.MAP_SIZE / 2;
         auto translated = m_im_draw.to_internal(t.x, t.y);
         if (m_im_draw.is_correct_point(translated)) {
-            int radius = m_im_draw.to_internal(i->getRadius() + 35 - m_im_draw.GRID_SIZE);
+            int radius = m_im_draw.to_internal(i.r + 35 - m_im_draw.GRID_SIZE);
             m_im_draw.draw_circle(translated, radius);
         }
     }
@@ -225,7 +225,7 @@ const std::vector<const model::Wizard *> &ExWorld::get_hostile_wizards() const {
     return m_en_wizards;
 }
 
-const std::vector<const model::CircularUnit *> &ExWorld::get_obstacles() const {
+const std::vector<SimpleCircle> &ExWorld::get_obstacles() const {
     return m_obstacles;
 }
 
@@ -233,7 +233,7 @@ const std::vector<TowerDesc> &ExWorld::get_hostile_towers() const {
     return m_shadow_towers;
 }
 
-bool ExWorld::check_no_collision(const geom::Point2D &obj, const double radius) const {
+bool ExWorld::check_no_collision(geom::Point2D obj, double radius, SimpleCircle *out_obstacle) const {
     const bool wall = obj.x <= radius || obj.x >= m_map_size - radius
                       || obj.y <= radius || obj.y >= m_map_size - radius;
     if (wall) {
@@ -242,11 +242,14 @@ bool ExWorld::check_no_collision(const geom::Point2D &obj, const double radius) 
     double sqrradius;
     geom::Vec2D dist{0, 0};
     for (const auto &obstacle : m_obstacles) {
-        sqrradius = radius + obstacle->getRadius();
+        sqrradius = radius + obstacle.r;
         sqrradius = sqrradius * sqrradius;
-        dist.x = obstacle->getX() - obj.x;
-        dist.y = obstacle->getY() - obj.y;
+        dist.x = obstacle.x - obj.x;
+        dist.y = obstacle.y - obj.y;
         if (dist.sqr() <= sqrradius) {
+            if (out_obstacle) {
+                *out_obstacle = obstacle;
+            }
             return false;
         }
     }

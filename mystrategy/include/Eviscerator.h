@@ -59,6 +59,8 @@ public:
 
     DestroyDesc destroy(model::Move &move);
 
+    void destroy(model::Move &move, const geom::Point2D &center, double radius) const;
+
     bool tower_maybe_attack_me(const TowerDesc &tower);
 
     bool can_shoot_to_target() const;

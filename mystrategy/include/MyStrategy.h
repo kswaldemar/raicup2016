@@ -40,7 +40,7 @@ public:
 
     bool initialize_strategy(const model::Wizard &self, const model::World &world, const model::Game &game);
 
-    static void visualise_danger_map(const fields::FieldMap& danger, const geom::Point2D &center);
+    static void visualise_field_maps(const std::vector<const fields::FieldMap *> &fmaps, const geom::Point2D &center);
 
     /*
      * Update danger map, according to current world info

@@ -26,11 +26,11 @@ public:
 
     const std::vector<const model::Wizard*> &get_hostile_wizards() const;
 
-    const std::vector<const model::CircularUnit*> &get_obstacles() const;
+    const std::vector<SimpleCircle> &get_obstacles() const;
 
     const std::vector<TowerDesc> &get_hostile_towers() const;
 
-    bool check_no_collision(const geom::Point2D &obj, const double radius) const;
+    bool check_no_collision(geom::Point2D obj, double radius, SimpleCircle *out_obstacle = nullptr) const;
 
     bool check_in_team_vision(const geom::Point2D &pt) const;
 
@@ -47,7 +47,7 @@ private:
     void update_canvas(const geom::Point2D &origin);
 
     const double m_map_size;
-    std::vector<const model::CircularUnit*> m_obstacles;
+    std::vector<SimpleCircle> m_obstacles;
     //Field of view description - point, view range
     std::vector<std::pair<const geom::Point2D, double>> m_fov;
     std::vector<const model::Minion*> m_en_creeps;

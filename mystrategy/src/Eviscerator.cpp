@@ -219,6 +219,20 @@ Eviscerator::DestroyDesc Eviscerator::destroy(model::Move &move) {
     return {m_target->unit, min_range};
 }
 
+void Eviscerator::destroy(model::Move &move, const geom::Point2D &center, double radius) const {
+    const double dist = m_i->s->getDistanceTo(center.x, center.y);
+    const double angle = m_i->s->getAngleTo(center.x, center.y);
+    const bool in_sector = std::abs(angle) < m_i->g->getStaffSector() / 2.0;
+    if (dist <= radius + m_i->g->getStaffRange() && in_sector) {
+        move.setAction(model::ACTION_STAFF);
+    } else if (dist <= radius + m_i->s->getCastRange() && in_sector) {
+        move.setAction(model::ACTION_MAGIC_MISSILE);
+        move.setCastAngle(angle);
+    }
+
+    move.setTurn(angle);
+}
+
 bool Eviscerator::tower_maybe_attack_me(const TowerDesc &tower) {
     std::vector<const model::LivingUnit*> maybe_targets;
     geom::Vec2D dist;
