@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "Field.h"
+#include "PotentialField.h"
 #include <memory>
 #include <list>
 
@@ -19,7 +19,7 @@ public:
 
     FieldMap(Type sum_rules);
 
-    void add_field(std::unique_ptr<IField> field);
+    void add_field(std::unique_ptr<PotentialField> field);
 
     double get_value(double x, double y) const;
 
@@ -27,7 +27,7 @@ public:
 
     void clear();
 private:
-    std::list<std::unique_ptr<IField>> m_fields;
+    std::list<std::unique_ptr<PotentialField>> m_fields;
     Type m_rules;
 };
 

@@ -16,6 +16,7 @@ set(sources
     src/SkillBuilder.cpp
     src/ExWorld.cpp
     src/Canvas.cpp
+    src/PotentialField.cpp
 )
 file(GLOB headers include/*.h)
 

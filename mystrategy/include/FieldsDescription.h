@@ -7,7 +7,7 @@
 /**
  * Описание определенных полей, которые наследуются от IVectorField
  */
-#include "Field.h"
+#include "PotentialField.h"
 
 #include <memory>
 #include <list>
@@ -17,26 +17,22 @@ namespace fields {
 /**
  * Поле влияющее в диапазоне r1 <= x <= r2 с постоянной силой.
  */
-class ConstField : public IField {
+class ConstField : public PotentialField {
 public:
     ConstField(const geom::Point2D &center, double r1, double r2, double force);
 
-    double get_value(double x, double y) const override;
+    double calc_force(double sqr_x) const override;
 protected:
-    double m_r1;
-    double m_r2;
     double m_force;
 };
 
 
-class LinearField : public IField {
+class LinearField : public PotentialField {
 public:
     LinearField(const geom::Point2D &center, double r1, double r2, double force);
 
-    double get_value(double x, double y) const override;
+    double calc_force(double sqr_x) const override;
 protected:
-    double m_r1;
-    double m_r2;
     double m_force;
 };
 
@@ -54,15 +50,13 @@ struct ExpConfig {
 /**
  * Поле влиющее в диапазоне r1 <= x <= r2 с силой, изменяющейся экспоненциально от расстояния
  */
-class ExpRingField : public IField {
+class ExpRingField : public PotentialField {
 public:
     ExpRingField(const geom::Point2D &center, double r1, double r2, bool is_attractive, const ExpConfig &conf);
 
-    double get_value(double x, double y) const override;
+    double calc_force(double sqr_x) const override;
 
 protected:
-    double m_r1;
-    double m_r2;
     bool m_is_attractive;
     double m_k;
     double m_V;

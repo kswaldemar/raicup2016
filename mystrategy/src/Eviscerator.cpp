@@ -19,8 +19,6 @@ Eviscerator::Eviscerator(const InfoPack &info)
 
 void Eviscerator::update_info(const InfoPack &info) {
     m_i = &info;
-
-    m_attract_field = nullptr;
     m_target = nullptr;
 
     //Create enemies list
@@ -238,14 +236,16 @@ bool Eviscerator::tower_maybe_attack_me(const TowerDesc &tower) {
     geom::Vec2D dist;
     const double att_rad = tower.attack_range * tower.attack_range;
     for (const auto &minion : m_i->w->getMinions()) {
-        if (minion.getFaction() != m_i->s->getFaction()) {
+        if (minion.getFaction() != m_i->s->getFaction() && minion.getFaction() != model::FACTION_NEUTRAL) {
+            //Enemy
             continue;
         }
-        bool aggresive_neutral = std::abs(minion.getSpeedX()) + std::abs(minion.getSpeedY()) > 0
+        bool active = std::abs(minion.getSpeedX()) + std::abs(minion.getSpeedY()) > 0
                             || minion.getRemainingActionCooldownTicks() > 0
-                            || minion.getLife() < minion.getMaxLife();
+                            || minion.getLife() < minion.getMaxLife()
+                            || minion.getFaction() == m_i->s->getFaction();
         dist = {tower.x - minion.getX(), tower.y - minion.getY()};
-        if (aggresive_neutral && dist.sqr() <= att_rad) {
+        if (active && dist.sqr() <= att_rad) {
             maybe_targets.emplace_back(&minion);
         }
     }

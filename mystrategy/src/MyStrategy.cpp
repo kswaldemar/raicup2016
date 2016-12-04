@@ -274,7 +274,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     }
 
 
-    //visualise_field_maps({&m_danger_map/*, &navigation*/}, me);
+    visualise_field_maps({&m_danger_map/*, &navigation*/}, me);
 
     VISUAL(endPre());
 

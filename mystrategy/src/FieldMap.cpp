@@ -10,7 +10,7 @@ FieldMap::FieldMap(FieldMap::Type sum_rules): m_rules(sum_rules) {
 
 }
 
-void FieldMap::add_field(std::unique_ptr<fields::IField> field) {
+void FieldMap::add_field(std::unique_ptr<fields::PotentialField> field) {
     m_fields.push_back(std::move(field));
 }
 

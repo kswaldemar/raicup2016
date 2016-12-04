@@ -10,7 +10,7 @@
 #include "model/Minion.h"
 #include "Vec2D.h"
 #include "InfoPack.h"
-#include "Field.h"
+#include "PotentialField.h"
 #include "UnitDesc.h"
 
 #include <memory>
@@ -69,6 +69,5 @@ private:
     //Set up in choose enemy
     const EnemyDesc *m_target;
     //Attraction to choosen enemy
-    std::unique_ptr<fields::IField> m_attract_field;
     std::vector<EnemyDesc> m_enemies;
 };
