@@ -5,6 +5,7 @@
 #include "ExWorld.h"
 #include "Logger.h"
 #include "VisualDebug.h"
+#include "MyLivingUnit.h"
 #include "model/Game.h"
 #include <cassert>
 
@@ -36,7 +37,6 @@ ExWorld::ExWorld(const model::World &world, const model::Game &game)
 
         m_shadow_towers.push_back(tds);
     }
-
 }
 
 void ExWorld::update_world(const model::Wizard &self, const model::World &world, const model::Game &game) {
@@ -67,31 +67,52 @@ void ExWorld::update_world(const model::Wizard &self, const model::World &world,
     m_obstacles.clear();
     m_fov.clear();
     for (const auto &i : world.getMinions()) {
-        m_obstacles.emplace_back(SimpleCircle::DYNAMIC, i.getX(), i.getY(), i.getRadius());
-
+        m_obstacles.emplace_back(MyLivingUnit::DYNAMIC, i);
         if (i.getFaction() == my_faction) {
             m_fov.emplace_back(geom::Point2D{i.getX(), i.getY()}, i.getVisionRange());
         }
     }
     for (const auto &i : world.getWizards()) {
         if (!i.isMe()) {
-            m_obstacles.emplace_back(SimpleCircle::DYNAMIC, i.getX(), i.getY(), i.getRadius());
+            m_obstacles.emplace_back(MyLivingUnit::DYNAMIC, i);
         }
-
         if (i.getFaction() == my_faction) {
             m_fov.emplace_back(geom::Point2D{i.getX(), i.getY()}, i.getVisionRange());
         }
     }
     for (const auto &i : world.getBuildings()) {
-        m_obstacles.emplace_back(SimpleCircle::STATIC, i.getX(), i.getY(), i.getRadius());
-
+        m_obstacles.emplace_back(MyLivingUnit::STATIC, i);
         if (i.getFaction() == my_faction) {
             m_fov.emplace_back(geom::Point2D{i.getX(), i.getY()}, i.getVisionRange());
         }
     }
+
+    std::set<int64_t> visible_trees;
     for (const auto &i : world.getTrees()) {
-        m_obstacles.emplace_back(SimpleCircle::STATIC, i.getX(), i.getY(), i.getRadius());
+        if (m_known_trees.find(i.getId()) == m_known_trees.cend()) {
+            m_trees.emplace_back(MyLivingUnit::STATIC, i);
+            m_known_trees.insert(i.getId());
+        }
+        visible_trees.insert(i.getId());
     }
+
+
+    if (world.getTickIndex() % TREE_UPDATE_FREQ == 0) {
+        //Check for destroyed trees
+        for (auto obs = m_trees.cbegin(); obs != m_trees.cend();) {
+            const bool visible = visible_trees.find(obs->getId()) != visible_trees.cend();
+            if (!visible && point_in_team_vision(obs->getX(), obs->getY())) {
+                obs = m_trees.erase(obs);
+            } else {
+                ++obs;
+            }
+        }
+    }
+
+    for (const auto &tree : m_trees) {
+        m_obstacles.push_back(tree);
+    }
+
 
     update_shadow_towers(world);
 
@@ -148,13 +169,13 @@ void ExWorld::update_world(const model::Wizard &self, const model::World &world,
 void ExWorld::update_canvas(const geom::Point2D &origin) {
     m_im_draw.clear();
     for (const auto &i : m_obstacles) {
-        geom::Point2D t = {i.x - origin.x, i.y - origin.y};
+        geom::Point2D t = {i.getX() - origin.x, i.getY() - origin.y};
         t.x += m_im_draw.MAP_SIZE / 2;
         t.y = -t.y;
         t.y += m_im_draw.MAP_SIZE / 2;
         auto translated = m_im_draw.to_internal(t.x, t.y);
         if (m_im_draw.is_correct_point(translated)) {
-            int radius = m_im_draw.to_internal(i.r + 35 - m_im_draw.GRID_SIZE);
+            int radius = m_im_draw.to_internal(i.getRadius() + 35 - m_im_draw.GRID_SIZE);
             m_im_draw.draw_circle(translated, radius);
         }
     }
@@ -225,7 +246,7 @@ const std::vector<const model::Wizard *> &ExWorld::get_hostile_wizards() const {
     return m_en_wizards;
 }
 
-const std::vector<SimpleCircle> &ExWorld::get_obstacles() const {
+const std::vector<MyLivingUnit> &ExWorld::get_obstacles() const {
     return m_obstacles;
 }
 
@@ -233,7 +254,7 @@ const std::vector<TowerDesc> &ExWorld::get_hostile_towers() const {
     return m_shadow_towers;
 }
 
-bool ExWorld::check_no_collision(geom::Point2D obj, double radius, SimpleCircle *out_obstacle) const {
+bool ExWorld::check_no_collision(geom::Point2D obj, double radius, const MyLivingUnit **out_obstacle) const {
     const bool wall = obj.x <= radius || obj.x >= m_map_size - radius
                       || obj.y <= radius || obj.y >= m_map_size - radius;
     if (wall) {
@@ -241,14 +262,15 @@ bool ExWorld::check_no_collision(geom::Point2D obj, double radius, SimpleCircle 
     }
     double sqrradius;
     geom::Vec2D dist{0, 0};
+
     for (const auto &obstacle : m_obstacles) {
-        sqrradius = radius + obstacle.r;
+        sqrradius = radius + obstacle.getRadius();
         sqrradius = sqrradius * sqrradius;
-        dist.x = obstacle.x - obj.x;
-        dist.y = obstacle.y - obj.y;
+        dist.x = obstacle.getX() - obj.x;
+        dist.y = obstacle.getY() - obj.y;
         if (dist.sqr() <= sqrradius) {
             if (out_obstacle) {
-                *out_obstacle = obstacle;
+                *out_obstacle = &obstacle;
             }
             return false;
         }
@@ -257,10 +279,14 @@ bool ExWorld::check_no_collision(geom::Point2D obj, double radius, SimpleCircle 
 }
 
 bool ExWorld::check_in_team_vision(const geom::Point2D &pt) const {
+    return point_in_team_vision(pt.x, pt.y);
+}
+
+bool ExWorld::point_in_team_vision(double x, double y) const {
     geom::Vec2D dist{0, 0};
     for (const auto &unit_fov : m_fov) {
-        dist.x = pt.x - unit_fov.first.x;
-        dist.y = pt.y - unit_fov.first.y;
+        dist.x = x - unit_fov.first.x;
+        dist.y = y - unit_fov.first.y;
         if (dist.sqr() <= (unit_fov.second * unit_fov.second)) {
             return true;
         }

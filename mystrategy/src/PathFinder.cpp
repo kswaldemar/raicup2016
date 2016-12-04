@@ -107,32 +107,30 @@ void PathFinder::update_info(const InfoPack &info, const fields::FieldMap &dange
 Point2D PathFinder::get_next_waypoint() {
     const Point2D me{m_i->s->getX(), m_i->s->getY()};
 
-    auto lane = get_lane_by_coord(me);
-
-    if (me.x <= 800 && me.y >= 3200) {
-        //We are on base
-        lane = m_current_lane;
-    }
-
-    if (lane != m_current_lane) {
-        //We are too far, return last point in lane
-        return m_last_wp[m_current_lane];
-    } else {
-        //Update last wp
-        double battle_front = 0;
-        switch (lane) {
-            case model::LANE_TOP:
-                m_last_wp[lane] = top_lane_projection(me, WAYPOINT_RADIUS + WAYPOINT_SHIFT, &battle_front);
-                break;
-            case model::LANE_MIDDLE:
-                m_last_wp[lane] = middle_lane_projection(me, WAYPOINT_RADIUS + WAYPOINT_SHIFT, &battle_front);
-                break;
-            case model::LANE_BOTTOM:
-                m_last_wp[lane] = bottom_lane_projection(me, WAYPOINT_RADIUS + WAYPOINT_SHIFT, &battle_front);
-                break;
-            default: break;
-        }
-    }
+    //auto lane = get_lane_by_coord(me);
+    //if (me.x <= 800 && me.y >= 3200) {
+    //    //We are on base
+    //    lane = m_current_lane;
+    //}
+    //if (lane != m_current_lane) {
+    //    //We are too far, return last point in lane
+    //    return m_last_wp[m_current_lane];
+    //} else {
+    //    //Update last wp
+    //    double battle_front = 0;
+    //    switch (lane) {
+    //        case model::LANE_TOP:
+    //            m_last_wp[lane] = top_lane_projection(me, WAYPOINT_RADIUS + WAYPOINT_SHIFT, &battle_front);
+    //            break;
+    //        case model::LANE_MIDDLE:
+    //            m_last_wp[lane] = middle_lane_projection(me, WAYPOINT_RADIUS + WAYPOINT_SHIFT, &battle_front);
+    //            break;
+    //        case model::LANE_BOTTOM:
+    //            m_last_wp[lane] = bottom_lane_projection(me, WAYPOINT_RADIUS + WAYPOINT_SHIFT, &battle_front);
+    //            break;
+    //        default: break;
+    //    }
+    //}
 
     return m_last_wp[m_current_lane];
 }

@@ -256,7 +256,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     }
 
     //Check tree blocking way
-    SimpleCircle block_obstacle(SimpleCircle::TYPES_COUNT, 0, 0, 0);
+    const MyLivingUnit *block_obstacle;
     bool destroy_obstacle = false;
     if ((waypoint.x > 0 && waypoint.y > 0
          && !m_i.ew->check_no_collision(waypoint, self.getRadius(), &block_obstacle)) // Obstacle blocking way
@@ -266,8 +266,8 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         //We will meet collision soon
         VISUAL(fillCircle(waypoint.x, waypoint.y, 10, 0x990000));
         //TODO: Choose nearest obstacle
-        if (block_obstacle.type == SimpleCircle::STATIC) {
-            m_ev->destroy(move, {block_obstacle.x, block_obstacle.y}, block_obstacle.r);
+        if (block_obstacle && block_obstacle->getType() == MyLivingUnit::STATIC) {
+            m_ev->destroy(move, {block_obstacle->getX(), block_obstacle->getY()}, block_obstacle->getRadius());
             destroy_obstacle = true;
         }
     }
@@ -303,6 +303,9 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
 
     VISUAL(beginPost());
 
+    //for (const auto &i : m_i.ew->get_obstacles()) {
+    //    VISUAL(fillCircle(i.getX(), i.getY(), 5, 0x550011));
+    //}
 
 #ifdef RUNNING_LOCAL
     {
@@ -532,7 +535,7 @@ void MyStrategy::update_danger_map() {
             damage_fields.add_field(std::make_unique<fields::ConstField>(
                 Point2D{i->getX(), i->getY()},
                 0, m_i.s->getRadius() + m_i.g->getOrcWoodcutterAttackRange(),
-                20
+                70
             ));
         } else {
             damage_fields.add_field(std::make_unique<fields::ConstField>(

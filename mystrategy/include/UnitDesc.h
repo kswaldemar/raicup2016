@@ -29,22 +29,6 @@ struct BonusDesc {
     int time; //Remaining time before appearing
 };
 
-struct SimpleCircle {
-
-    enum Type {
-        STATIC, ///< Cannot move by definition (tree or building)
-        DYNAMIC, ///< Anything else
-        TYPES_COUNT,
-    };
-
-    SimpleCircle(Type type_, double x_, double y_, double r_) : type(type_), x(x_), y(y_), r(r_) {}
-
-    Type type;
-    double x;
-    double y;
-    double r;
-};
-
 /**
  * Invisible tower description
  */
