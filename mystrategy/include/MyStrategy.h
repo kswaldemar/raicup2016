@@ -42,10 +42,12 @@ public:
 
     static void visualise_field_maps(const std::vector<const fields::FieldMap *> &fmaps, const geom::Point2D &center);
 
+    fields::FieldMap create_danger_map();
+
     /*
      * Update danger map, according to current world info
      */
-    void update_danger_map();
+    void update_damage_map();
 
     void each_tick_update(const model::Wizard &self, const model::World &world, const model::Game &game);
 

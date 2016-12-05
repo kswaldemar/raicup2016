@@ -1,9 +1,9 @@
 #include "FieldsDescription.h"
-#include "Config.h"
 #include "MyStrategy.h"
 #include "PathFinder.h"
 #include "Logger.h"
 #include "VisualDebug.h"
+#include "BehaviourConfig.h"
 
 #include <cassert>
 #include <list>
@@ -29,6 +29,8 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     //Update information
     each_tick_update(self, world, game);
 
+    fields::FieldMap strategic_map = create_danger_map();
+
     //Try learn something
     if (game.isSkillsEnabled()) {
         m_sb->try_level_up(move);
@@ -42,12 +44,6 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         hold_time = 0;
     }
     const bool not_moved = hold_time >= 7;
-    //if (not_moved) {
-    //    LOG("Tick %d: Not moved in last tick - spd (%3.1lf, %3.1lf)\n",
-    //        world.getTickIndex(),
-    //        self.getSpeedX(),
-    //        self.getSpeedY());
-    //}
 
     const Point2D me{self.getX(), self.getY()};
 
@@ -58,7 +54,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     static Behaviour prev_action = BH_COUNT;
 
     Vec2D dir;
-    double danger_level = m_danger_map.get_value(me);
+    double danger_level = strategic_map.get_value(me);
 
     fields::FieldMap navigation(fields::FieldMap::MIN);
     const double NAV_K = -2.5;
@@ -68,7 +64,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     const bool have_target = best_enemy > 0;
     const bool can_shoot = m_ev->can_shoot_to_target();
     bool hold_face = have_target;
-    if (danger_level <= config::ATTACK_THRESH && current_action == BH_COUNT && have_target) {
+    if (danger_level <= BehaviourConfig::danger_attack_t && current_action == BH_COUNT && have_target) {
         //Danger is ok to attack
         //Enemy choosen
         prev_action = current_action;
@@ -96,7 +92,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     }
 
     static constexpr int NOT_EXPENSIVE_ENEMY = 1600;
-    if (danger_level <= config::BONUS_EARN_THRESH
+    if (danger_level <= BehaviourConfig::danger_bonus_earn_t
         && (best_enemy <= NOT_EXPENSIVE_ENEMY)
         && m_pf->bonuses_is_under_control()) {
         //Here check for bonuses time and go to one of them
@@ -164,7 +160,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
 
     geom::Point2D waypoint{0, 0};
 
-    if (danger_level <= config::SCOUT_THRESH && current_action == BH_COUNT) {
+    if (danger_level <= BehaviourConfig::danger_scout_t && current_action == BH_COUNT) {
         //Move by waypoints
         prev_action = current_action;
         current_action = BH_SCOUT;
@@ -274,7 +270,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     }
 
 
-    //visualise_field_maps({&m_danger_map/*, &navigation*/}, me);
+    visualise_field_maps({&strategic_map/*, &navigation*/}, me);
 
     VISUAL(endPre());
 
@@ -322,6 +318,8 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     }
     sprintf(buf, "%c %3.1lf%%", c, m_danger_map.get_value(self.getX(), self.getY()));
     VISUAL(text(self.getX() - 70, self.getY() - 60, buf, 0xFF0000));
+    sprintf(buf, "[%5.5lf]", strategic_map.get_value(me));
+    VISUAL(text(me.x - 70, me.y - 80, buf, 0xFF9900));
     //Vec2D spd{self.getSpeedX(), self.getSpeedY()};
     //sprintf(buf, "spd %3.1lf", spd.len());
     //VISUAL(text(self.getX(), self.getY() - 70, buf, 0x009911));
@@ -371,7 +369,7 @@ void MyStrategy::each_tick_update(const model::Wizard &self, const model::World 
     m_i.ew->update_world(self, world, game);
 
     //Calculate danger map
-    update_danger_map();
+    update_damage_map();
 
     m_pf->update_info(m_i, m_danger_map);
     m_ev->update_info(m_i);
@@ -468,7 +466,7 @@ geom::Vec2D MyStrategy::potential_vector(const Point2D &pt, const std::vector<co
     return {x1, y1};
 }
 
-void MyStrategy::update_danger_map() {
+void MyStrategy::update_damage_map() {
 
     m_danger_map.clear();
     auto &damage_fields = m_danger_map;
@@ -569,6 +567,9 @@ void MyStrategy::visualise_field_maps(const std::vector<const fields::FieldMap *
             for (const auto &fmap : fmaps) {
                 force += fmap->get_value(x_a, y_a);
             }
+
+            force *= 255;
+
             force = std::min(force, 255.0);
             force = std::max(force, -255.0);
 
@@ -602,4 +603,89 @@ void MyStrategy::smooth_path(const geom::Point2D &me, std::list<geom::Point2D> &
             break;
         }
     }
+}
+
+fields::FieldMap MyStrategy::create_danger_map() {
+    using namespace fields;
+    FieldMap ret(FieldMap::ADD);
+
+    const double my_speed = m_i.g->getWizardBackwardSpeed() * m_i.ew->get_wizard_movement_factor(*m_i.s);
+    const int my_life = m_i.s->getLife();
+
+    //TODO: Respect self shield
+
+    for (const auto &i : m_i.ew->get_hostile_towers()) {
+        DangerField::Config conf = {
+            i.getDamage(),
+            i.getAttackRange(),
+            i.getRemainingActionCooldownTicks(),
+            i.getCooldown(),
+            0 // Tower cannot move
+        };
+
+        ret.add_field(std::make_unique<DangerField>(
+            i.getPoint(),
+            0,
+            i.getAttackRange() + 1,
+            my_speed,
+            my_life,
+            conf
+        ));
+    }
+
+    for (const auto &i : m_i.ew->get_hostile_creeps()) {
+        const double attack_range = i->getType() == MINION_ORC_WOODCUTTER ? m_i.g->getOrcWoodcutterAttackRange()
+                                                                       : m_i.g->getFetishBlowdartAttackRange();
+        //TODO: Respect minion angle as increased remaining cooldown
+        DangerField::Config conf = {
+            i->getDamage(),
+            attack_range,
+            i->getRemainingActionCooldownTicks(),
+            i->getCooldownTicks(),
+            m_i.g->getMinionSpeed()
+        };
+
+        //TODO: Check that minion will attack us and narrow field if not
+        //TODO: Adjust to emulate going away
+        ret.add_field(std::make_unique<DangerField>(
+            geom::Point2D(i->getX(), i->getY()),
+            0,
+            i->getVisionRange(),
+            my_speed,
+            my_life,
+            conf
+        ));
+    }
+
+    for (const auto &i : m_i.ew->get_hostile_wizards()) {
+
+        const auto cooldowns = i->getRemainingCooldownTicksByAction();
+        const double speed = m_i.g->getWizardForwardSpeed() * m_i.ew->get_wizard_movement_factor(*i);
+        const double extra_w = 0; // Radius above cast range
+
+        int overtime = 0;
+        const double angle = std::abs(i->getAngleTo(*m_i.s));
+        //TODO: Respect haste increased turn speed
+        overtime += static_cast<int>(ceil(angle / m_i.g->getWizardMaxTurnAngle()));
+        //TODO: Respect damage increase auras
+        //TODO: Honor fireball and frostbolt ultimates
+        DangerField::Config conf = {
+            m_i.g->getMagicMissileDirectDamage(),
+            i->getCastRange() + m_i.s->getRadius(),
+            cooldowns[ACTION_MAGIC_MISSILE],
+            m_i.g->getMagicMissileCooldownTicks() + overtime,
+            speed,
+        };
+
+        ret.add_field(std::make_unique<DangerField>(
+            geom::Point2D(i->getX(), i->getY()),
+            0,
+            i->getVisionRange() + extra_w,
+            my_speed,
+            my_life,
+            conf
+        ));
+    }
+
+    return ret;
 }
