@@ -298,8 +298,8 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
 #ifdef RUNNING_LOCAL
     for (const auto &i : m_i.ew->get_hostile_towers()) {
         char buf[20];
-        sprintf(buf, "%d", i.rem_cooldown);
-        VISUAL(text(i.x, i.y + 50, buf, 0x00CC00));
+        sprintf(buf, "%d", i.getRemainingActionCooldownTicks());
+        VISUAL(text(i.getX(), i.getY() + 50, buf, 0x00CC00));
     }
 #endif
 
@@ -527,10 +527,10 @@ void MyStrategy::update_danger_map() {
     }
 
     for (const auto &tower : m_i.ew->get_hostile_towers()) {
-        double attack_range = tower.attack_range + m_i.s->getRadius();
-        const AttackUnit enemy{tower.rem_cooldown,
-                               tower.cooldown,
-                               tower.damage,
+        double attack_range = tower.getAttackRange() + m_i.s->getRadius();
+        const AttackUnit enemy{tower.getRemainingActionCooldownTicks(),
+                               tower.getCooldown(),
+                               tower.getDamage(),
                                attack_range,
                                0};
         double dead_zone_r = Eviscerator::calc_dead_zone(me, enemy);
@@ -541,18 +541,18 @@ void MyStrategy::update_danger_map() {
         }
         damage_fields.add_field(
             std::make_unique<fields::ExpRingField>(
-                Point2D{tower.x, tower.y},
+                tower.getPoint(),
                 0,
-                tower.attack_range + 1,
+                tower.getAttackRange() + 1,
                 false,
                 fields::ExpConfig::from_two_points(config::DAMAGE_ZONE_CURVATURE, cost, dead_zone_r)
             )
         );
 
-        VISUAL(circle(tower.x, tower.y, tower.attack_range, 0x440000));
+        VISUAL(circle(tower.getX(), tower.getY(), tower.getAttackRange(), 0x440000));
         char buf[10];
-        sprintf(buf, "%3d", tower.rem_cooldown);
-        VISUAL(text(tower.x, tower.y + 30, buf, 0x004400));
+        sprintf(buf, "%3d", tower.getRemainingActionCooldownTicks());
+        VISUAL(text(tower.getX(), tower.getY() + 30, buf, 0x004400));
     }
 }
 

@@ -20,6 +20,7 @@ set(sources
 
     src/MyLivingUnit.cpp
     src/MyBonus.cpp
+    src/MyBuilding.cpp
 )
 file(GLOB headers include/*.h)
 

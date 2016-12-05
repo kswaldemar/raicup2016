@@ -231,10 +231,10 @@ void Eviscerator::destroy(model::Move &move, const geom::Point2D &center, double
     move.setTurn(angle);
 }
 
-bool Eviscerator::tower_maybe_attack_me(const TowerDesc &tower) {
+bool Eviscerator::tower_maybe_attack_me(const MyBuilding &tower) {
     std::vector<const model::LivingUnit*> maybe_targets;
     geom::Vec2D dist;
-    const double att_rad = tower.attack_range * tower.attack_range;
+    const double att_rad = tower.getAttackRange() * tower.getAttackRange();
     for (const auto &minion : m_i->w->getMinions()) {
         if (minion.getFaction() != m_i->s->getFaction() && minion.getFaction() != model::FACTION_NEUTRAL) {
             //Enemy
@@ -244,7 +244,7 @@ bool Eviscerator::tower_maybe_attack_me(const TowerDesc &tower) {
                             || minion.getRemainingActionCooldownTicks() > 0
                             || minion.getLife() < minion.getMaxLife()
                             || minion.getFaction() == m_i->s->getFaction();
-        dist = {tower.x - minion.getX(), tower.y - minion.getY()};
+        dist = {tower.getX() - minion.getX(), tower.getY() - minion.getY()};
         if (active && dist.sqr() <= att_rad) {
             maybe_targets.emplace_back(&minion);
         }
@@ -253,7 +253,7 @@ bool Eviscerator::tower_maybe_attack_me(const TowerDesc &tower) {
         if (wizard.isMe() || wizard.getFaction() != m_i->s->getFaction()) {
             continue;
         }
-        dist = {tower.x - wizard.getX(), tower.y - wizard.getY()};
+        dist = {tower.getX() - wizard.getX(), tower.getY() - wizard.getY()};
         if (dist.sqr() <= att_rad) {
             maybe_targets.emplace_back(&wizard);
         }
@@ -262,7 +262,7 @@ bool Eviscerator::tower_maybe_attack_me(const TowerDesc &tower) {
     int case1_hp = 1000;
     int case2_hp = 0;
     for (const auto &i : maybe_targets) {
-        if (i->getLife() >= tower.damage) {
+        if (i->getLife() >= tower.getDamage()) {
             case1_hp = std::min(i->getLife(), case1_hp);
         } else {
             case2_hp = std::max(i->getLife(), case2_hp);

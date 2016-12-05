@@ -23,20 +23,3 @@ struct RunawayUnit {
     int max_life;
     double speed;
 };
-
-/**
- * Invisible tower description
- */
-class TowerDesc {
-public:
-    long long int id = -1;
-    double x;
-    double y;
-    double r;
-    int rem_cooldown;
-    int cooldown;
-    int life;
-    int max_life;
-    double attack_range;
-    int damage;
-};

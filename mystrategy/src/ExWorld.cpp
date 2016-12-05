@@ -16,8 +16,6 @@ ExWorld::ExWorld(const model::World &world, const model::Game &game)
     int my_faction = world.getMyPlayer().getFaction();
 
     //Set enemy towers as our towers with mirrored coordinates
-    m_shadow_towers.clear();
-    TowerDesc tds;
     for (const auto &tower : world.getBuildings()) {
         if (tower.getFaction() != my_faction) {
             continue;
@@ -25,17 +23,15 @@ ExWorld::ExWorld(const model::World &world, const model::Game &game)
 
         const double map_size = game.getMapSize();
 
-        tds.x = map_size - tower.getX();
-        tds.y = map_size - tower.getY();
-        tds.r = tower.getRadius();
-        tds.cooldown = tower.getCooldownTicks();
-        tds.rem_cooldown = tower.getRemainingActionCooldownTicks();
-        tds.life = tower.getLife();
-        tds.max_life = tower.getMaxLife();
-        tds.attack_range = tower.getAttackRange();
-        tds.damage = tower.getDamage();
-
-        m_shadow_towers.push_back(tds);
+        m_shadow_towers.emplace_back(
+            map_size - tower.getX(),
+            map_size - tower.getY(),
+            tower.getRadius(),
+            tower.getDamage(),
+            tower.getAttackRange(),
+            tower.getMaxLife(),
+            tower.getCooldownTicks()
+        );
     }
 
     m_bonuses.emplace_back(1200, 1200, world.getTickIndex());
@@ -66,6 +62,7 @@ void ExWorld::update_world(const model::Wizard &self, const model::World &world,
         }
     }
 
+    //Should be first, to have actual FOV info
     update_obstacles_and_fov(world);
 
     update_shadow_towers(world);
@@ -150,18 +147,16 @@ void ExWorld::update_shadow_towers(const World &world) {
     int my_faction = world.getMyPlayer().getFaction();
 
     /*
-     * First decrease cooldown by one
+     * Update remaining cooldown
      */
     for (auto &shadow : m_shadow_towers) {
-        if (shadow.rem_cooldown > 0) {
-            shadow.rem_cooldown--;
-        }
+        shadow.updateClock(world.getTickIndex());
     }
 
     /*
      * Looks for enemy towers in building list, maybe we see some of them
      */
-    std::vector<bool> updated(m_shadow_towers.size(), false);
+    std::vector<bool> visible(m_shadow_towers.size(), false);
     for (const auto &enemy_tower : world.getBuildings()) {
         if (enemy_tower.getFaction() == my_faction) {
             continue;
@@ -169,13 +164,10 @@ void ExWorld::update_shadow_towers(const World &world) {
         //Search corresponding tower among shadows
         int idx = 0;
         for (auto &shadow : m_shadow_towers) {
-            if (enemy_tower.getId() == shadow.id
-                || enemy_tower.getDistanceTo(shadow.x, shadow.y) <= enemy_tower.getRadius()) {
+            if (shadow.isSame(enemy_tower)) {
                 //Found, update info
-                shadow.id = enemy_tower.getId();
-                shadow.rem_cooldown = enemy_tower.getRemainingActionCooldownTicks();
-                shadow.life = enemy_tower.getLife();
-                updated[idx] = true;
+                shadow.update(enemy_tower);
+                visible[idx] = true;
             }
             ++idx;
         }
@@ -184,22 +176,17 @@ void ExWorld::update_shadow_towers(const World &world) {
     /*
      * Check for destroy, if we see place, but don't see tower, it is destroyed
      */
-    geom::Vec2D dist{0, 0};
-    for (const auto &unit_fov : m_fov) {
-        int idx = 0;
-        auto it = m_shadow_towers.cbegin();
-        while (it != m_shadow_towers.cend()) {
-            dist.x = it->x - unit_fov.first.x;
-            dist.y = it->y - unit_fov.first.y;
-            if (dist.sqr() < (unit_fov.second * unit_fov.second) && !updated[idx]) {
-                //We should see it, but it not appeared in world.getBuildings, so it is destroyed
-                LOG("Don't see tower: %3lf <= %3lf, %d\n", dist.len(), unit_fov.second, (int) updated[idx]);
-                it = m_shadow_towers.erase(it);
-            } else {
-                ++it;
-            }
-            ++idx;
+    int idx = 0;
+    auto it = m_shadow_towers.cbegin();
+    while (it != m_shadow_towers.cend()) {
+        if (point_in_team_vision(it->getPoint()) && !visible[idx]) {
+            //We should see it, but it not appeared in world.getBuildings, so it is destroyed
+            LOG("Don't see tower: (%3.1lf, %3.1lf)\n", it->getX(), it->getY());
+            it = m_shadow_towers.erase(it);
+        } else {
+            ++it;
         }
+        ++idx;
     }
 }
 
@@ -280,7 +267,7 @@ const std::vector<MyLivingUnit> &ExWorld::get_obstacles() const {
     return m_obstacles;
 }
 
-const std::vector<TowerDesc> &ExWorld::get_hostile_towers() const {
+const std::vector<MyBuilding> &ExWorld::get_hostile_towers() const {
     return m_shadow_towers;
 }
 
@@ -312,7 +299,7 @@ bool ExWorld::check_no_collision(geom::Point2D obj, double radius, const MyLivin
     return true;
 }
 
-bool ExWorld::check_in_team_vision(const geom::Point2D &pt) const {
+bool ExWorld::point_in_team_vision(const geom::Point2D &pt) const {
     return point_in_team_vision(pt.x, pt.y);
 }
 

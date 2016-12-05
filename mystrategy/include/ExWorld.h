@@ -8,9 +8,10 @@
 #include "Vec2D.h"
 #include "Canvas.h"
 #include "MyLivingUnit.h"
-#include "model/World.h"
-#include "model/Game.h"
 #include "MyBonus.h"
+#include "MyBuilding.h"
+#include "model/Game.h"
+#include "model/World.h"
 #include <array>
 #include <list>
 #include <set>
@@ -33,13 +34,13 @@ public:
 
     const std::vector<MyLivingUnit> &get_obstacles() const;
 
-    const std::vector<TowerDesc> &get_hostile_towers() const;
+    const std::vector<MyBuilding> &get_hostile_towers() const;
 
     const std::vector<MyBonus> &get_bonuses() const;
 
     bool check_no_collision(geom::Point2D obj, double radius, const MyLivingUnit **out_obstacle = nullptr) const;
 
-    bool check_in_team_vision(const geom::Point2D &pt) const;
+    bool point_in_team_vision(const geom::Point2D &pt) const;
 
     bool point_in_team_vision(double x, double y) const;
 
@@ -70,7 +71,7 @@ private:
     std::vector<std::pair<const geom::Point2D, double>> m_fov;
     std::vector<const model::Minion*> m_en_creeps;
     std::vector<const model::Wizard*> m_en_wizards;
-    std::vector<TowerDesc> m_shadow_towers;
+    std::vector<MyBuilding> m_shadow_towers;
     std::array<double, 10> m_wizard_speed_factor;
     geom::Point2D m_canvas_origin;
     Canvas m_im_draw;

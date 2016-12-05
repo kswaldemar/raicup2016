@@ -72,10 +72,10 @@ void PathFinder::update_info(const InfoPack &info, const fields::FieldMap &dange
         }
     }
     for (const auto &i : m_i->ew->get_hostile_towers()) {
-        const geom::Point2D pt{i.x, i.y};
+        const geom::Point2D pt = i.getPoint();
         auto lane = get_lane_by_coord(pt);
         double front = 1;
-        int shift = static_cast<int>(-i.attack_range + WAYPOINT_RADIUS);
+        int shift = static_cast<int>(-i.getAttackRange() + WAYPOINT_RADIUS);
         geom::Point2D projection;
         switch (lane) {
             case model::LANE_TOP:
