@@ -319,6 +319,18 @@ double ExWorld::get_wizard_movement_factor(const Wizard &who) const {
     return m_wizard_speed_factor[who.getId()];
 }
 
+double ExWorld::get_wizard_turn_factor(const model::Wizard &who) const {
+    return 1;
+}
+
+double ExWorld::get_wizard_magical_damage_absorb_factor() const {
+    return 1;
+}
+
+double ExWorld::get_wizard_damage_absorb_factor() const {
+    return 1;
+}
+
 bool ExWorld::line_of_sight(double x1, double y1, double x2, double y2) const {
     geom::Point2D pt1 = {x1 - m_canvas_origin.x, y1 - m_canvas_origin.y};
     geom::Point2D pt2 = {x2 - m_canvas_origin.x, y2 - m_canvas_origin.y};

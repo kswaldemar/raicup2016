@@ -20,8 +20,7 @@ set(sources
     src/MyLivingUnit.cpp
     src/MyBonus.cpp
     src/MyBuilding.cpp
-    src/MyWizard.cpp
-)
+    )
 file(GLOB headers include/*.h)
 
 add_library(mystrategy STATIC ${sources} ${headers})

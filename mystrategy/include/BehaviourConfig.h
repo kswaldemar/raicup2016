@@ -6,14 +6,14 @@
 
 struct BehaviourConfig {
     //How long enemy wizard can pursuit us. More value - more fearing of enemy wizards
-    static constexpr int max_runaway_time = 100;
+    static constexpr int max_runaway_time = 200;
     //General decision values
     static constexpr double danger_attack_t = 0.7; ///< Maximum danger value to attack
     static constexpr double danger_bonus_earn_t = 0.6;
     static constexpr double danger_scout_t = 0.6;
 
-    //Ratio to respect damage field values when calculate move cost
-    //1 - damage value 1 correspond to same distance
+    //Multiplier to respect damage field values when calculate move cost
+    //1 - 1.0 damage correspond 1.0 pixel extra distance
     static constexpr double pathfinder_damage_mult = 1;
 
     //Normalized from 0 to 1
@@ -41,4 +41,12 @@ struct BehaviourConfig {
         //TODO: Force should depend on enemy HP
         double attack = 0.0008;
     } navigation_k;
+
+    static constexpr double enemy_detect_distance = 700;
+    //static struct Score {
+    //    int orc;
+    //    int fetish;
+    //    int tower;
+    //    int wizard;
+    //} targeting;
 };

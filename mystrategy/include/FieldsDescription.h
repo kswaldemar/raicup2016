@@ -49,14 +49,22 @@ public:
         double speed;
     };
 
-    DangerField(const geom::Point2D &center, double r1, double r2, double my_speed, int my_life, Config enemy);
+    DangerField(const geom::Point2D &center,
+                double r1,
+                double r2,
+                double my_speed,
+                int my_life,
+                int my_max_life,
+                Config enemy);
 
     double calc_force(double sqr_x) const override;
 
 protected:
     double m_speed;
     int m_life;
+    int m_max_life;
     Config m_enemy;
+
 };
 
 }

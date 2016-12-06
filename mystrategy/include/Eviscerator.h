@@ -14,6 +14,7 @@
 #include "UnitDesc.h"
 
 #include <memory>
+#include <map>
 
 struct EnemyDesc {
     enum class Type {
@@ -23,13 +24,15 @@ struct EnemyDesc {
         TOWER
     };
 
-    EnemyDesc(const model::LivingUnit *unit, Type type)
+    EnemyDesc(const model::LivingUnit *unit, Type type, double score)
         : unit(unit),
-          type(type) {
+          type(type),
+          score(score) {
     }
 
     const model::LivingUnit *unit;
     Type type;
+    double score;
 };
 
 
@@ -48,14 +51,12 @@ public:
      */
     void update_info(const InfoPack &info);
 
-    static double calc_dead_zone(const RunawayUnit &me, const AttackUnit &enemy);
-
     /**
      * Check all enemies and choose best one.
      * Enemy stored in internal variable
      * @return true, if killing candidate found
      */
-    int choose_enemy();
+    double choose_enemy();
 
     DestroyDesc destroy(model::Move &move);
 
@@ -64,10 +65,18 @@ public:
     bool tower_maybe_attack_me(const MyBuilding &tower);
 
     bool can_shoot_to_target() const;
+
+    double get_minion_aggression_radius(const model::Minion &creep) const;
+
+    bool is_minion_attack_me(const model::Minion &creep) const;
+
+    bool can_leave_battlefield() const;
+
 private:
     const InfoPack *m_i;
     //Set up in choose enemy
     const EnemyDesc *m_target;
-    //Attraction to choosen enemy
-    std::vector<EnemyDesc> m_enemies;
+    //Minion target and distance to target
+    std::map<long long int, std::pair<const model::LivingUnit *, double>> m_minion_target_by_id;
+    std::vector<EnemyDesc> m_possible_targets;
 };

@@ -37,10 +37,12 @@ DangerField::DangerField(const geom::Point2D &center,
                          double r2,
                          double my_speed,
                          int my_life,
+                         int my_max_life,
                          DangerField::Config enemy)
     : PotentialField(center, r1, r2),
       m_speed(my_speed),
       m_life(my_life),
+      m_max_life(my_max_life),
       m_enemy(enemy) {
 
 }
@@ -60,7 +62,9 @@ double DangerField::calc_force(double sqr_x) const {
         }
     } else {
         //Suppose enemy will go for us no longer than catch time
-        retreat_time = BehaviourConfig::max_runaway_time;
+        //TODO: Respect enemy HP if it is low, it possibly will not pursuit
+        retreat_time = static_cast<int>(BehaviourConfig::max_runaway_time
+                                        * (1.0 - static_cast<double>(m_life) / m_max_life));
     }
     if (retreat_time < 1) {
         retreat_time = 1;

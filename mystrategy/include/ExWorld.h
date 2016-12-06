@@ -46,6 +46,12 @@ public:
 
     double get_wizard_movement_factor(const model::Wizard &who) const;
 
+    double get_wizard_turn_factor(const model::Wizard &who) const;
+
+    double get_wizard_magical_damage_absorb_factor() const;
+
+    double get_wizard_damage_absorb_factor() const;
+
     bool line_of_sight(double x1, double y1, double x2, double y2) const;
 
     void show_me_canvas() const;
