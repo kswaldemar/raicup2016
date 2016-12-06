@@ -8,7 +8,7 @@
 
 class Canvas {
 public:
-    static constexpr int MAP_SIZE = 1200;
+    static constexpr int MAP_SIZE = 1400;
     static constexpr int GRID_SIZE = 5;
     static constexpr int CELL_COUNT = (MAP_SIZE + GRID_SIZE - 1) / GRID_SIZE;
 
