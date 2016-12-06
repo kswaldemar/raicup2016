@@ -285,9 +285,12 @@ std::list<geom::Point2D> PathFinder::find_way(const geom::Point2D &to, double ra
     }
 
     //Heuristic function for A-star
-    const auto &dmap = m_danger_map;
-    const auto astar_h = [&dmap](const Point2D &cur, const Point2D &target) {
-        return (target - cur).len() + dmap->get_value(cur);
+    //const auto &dmap = m_danger_map;
+    const auto astar_h = [](const Point2D &cur, const Point2D &target) {
+        static const double D2 = sqrt(2);
+        double dx = std::abs(cur.x - target.x);
+        double dy = std::abs(cur.y - target.y);
+        return (dx + dy) + (D2 - 2) * std::min(dx, dy);
     };
 
     struct CCWithCost {

@@ -13,7 +13,8 @@ using namespace model;
 using namespace std;
 using namespace geom;
 
-//const double EPS = 1e-7;
+BehaviourConfig::Damage BehaviourConfig::damage = BehaviourConfig::Damage();
+BehaviourConfig::NavK BehaviourConfig::navigation_k = BehaviourConfig::NavK();
 
 MyStrategy::MyStrategy() {
 }
@@ -57,8 +58,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     double danger_level = strategic_map.get_value(me);
 
     fields::FieldMap navigation(fields::FieldMap::MIN);
-    const double NAV_K = -2.5;
-    int nav_radius = 5000;
+    int nav_radius = 1000;
 
     int best_enemy = m_ev->choose_enemy();
     const bool have_target = best_enemy > 0;
@@ -83,7 +83,11 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             }
             dir = m_bhs[BH_ATTACK].get_next_direction(self);
             navigation.add_field(std::make_unique<fields::LinearField>(
-                me + dir, 0, nav_radius, NAV_K * nav_radius
+                me + dir,
+                0,
+                nav_radius,
+                BehaviourConfig::navigation_k.attack,
+                -BehaviourConfig::navigation_k.attack * nav_radius
             ));
         } else if (self.getDistanceTo(*description.unit) <= description.att_range) {
             current_action = BH_MINIMIZE_DANGER;
@@ -134,7 +138,11 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             dir = m_bhs[BH_EARN_BONUS].get_next_direction(self);
             navigation.clear();
             navigation.add_field(std::make_unique<fields::LinearField>(
-                me + dir, 0, nav_radius, NAV_K * nav_radius
+                me + dir,
+                0,
+                nav_radius,
+                BehaviourConfig::navigation_k.bonus,
+                -BehaviourConfig::navigation_k.bonus * nav_radius
             ));
         }
 
@@ -149,11 +157,9 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     for (const auto &b : m_i.ew->get_bonuses()) {
         int rem_time = b.getRemainingTime();
         if (rem_time > 0 && rem_time < 26) {
-            m_danger_map.add_field(std::make_unique<fields::ConstField>(
-                b.getPoint(), 0, game.getBonusRadius() + self.getRadius(), 100
-            ));
-            m_danger_map.add_field(std::make_unique<fields::LinearField>(
-                b.getPoint(), 0, game.getBonusRadius() + self.getRadius(), 1000
+            const double d1 = game.getBonusRadius() + self.getRadius();
+            m_damage_map.add_field(std::make_unique<fields::LinearField>(
+                b.getPoint(), 0, d1, -0.1 / d1, 1
             ));
         }
     }
@@ -179,7 +185,11 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         dir = m_bhs[BH_SCOUT].get_next_direction(self);
         navigation.clear();
         navigation.add_field(std::make_unique<fields::LinearField>(
-            me + dir, 0, nav_radius, NAV_K * nav_radius
+            me + dir,
+            0,
+            nav_radius,
+            BehaviourConfig::navigation_k.next_wp,
+            -BehaviourConfig::navigation_k.next_wp * nav_radius
         ));
 
         waypoint = me + dir;
@@ -195,9 +205,14 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         auto wp_prev = m_pf->get_previous_waypoint();
         if (wp_prev.x > 0 && wp_prev.y > 0) {
             VISUAL(circle(wp_prev.x, wp_prev.y, PathFinder::WAYPOINT_RADIUS, 0x002211));
-            m_danger_map.add_field(
+            //TODO: Make infinitive
+            navigation.add_field(
                 std::make_unique<fields::LinearField>(
-                    wp_prev, 0, 500, -13
+                    wp_prev,
+                    0,
+                    nav_radius,
+                    BehaviourConfig::navigation_k.prev_wp,
+                    -BehaviourConfig::navigation_k.prev_wp * 500
                 )
             );
 
@@ -217,13 +232,17 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
                 dir = m_bhs[BH_MINIMIZE_DANGER].get_next_direction(self);
                 navigation.clear();
                 navigation.add_field(std::make_unique<fields::LinearField>(
-                    me + dir, 0, nav_radius, NAV_K * nav_radius
+                    me + dir,
+                    0,
+                    nav_radius,
+                    BehaviourConfig::navigation_k.prev_wp,
+                    -BehaviourConfig::navigation_k.prev_wp * nav_radius
                 ));
             }
         }
     }
 
-    dir = potential_vector(me, {&m_danger_map, &navigation});
+    dir = potential_vector(me, {&m_damage_map, &navigation});
     if (dir.len() > EPS) {
         m_pf->move_along(dir, move, hold_face);
     }
@@ -270,7 +289,13 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     }
 
 
-    visualise_field_maps({&strategic_map/*, &navigation*/}, me);
+    //visualise_field_maps(
+    //    {
+    //        &m_damage_map,
+    //        //&navigation
+    //    },
+    //    me
+    //);
 
     VISUAL(endPre());
 
@@ -316,7 +341,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         case BH_EARN_BONUS: c = 'B';
             break;
     }
-    sprintf(buf, "%c %3.1lf%%", c, m_danger_map.get_value(self.getX(), self.getY()));
+    sprintf(buf, "%c %3.1lf%%", c, m_damage_map.get_value(self.getX(), self.getY()));
     VISUAL(text(self.getX() - 70, self.getY() - 60, buf, 0xFF0000));
     sprintf(buf, "[%5.5lf]", strategic_map.get_value(me));
     VISUAL(text(me.x - 70, me.y - 80, buf, 0xFF9900));
@@ -331,8 +356,6 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     //if (world.getTickIndex() % 100 == 0) {
     //    LOG("Try to learn %d\n", move.getSkillToLearn());
     //}
-
-
 }
 
 void MyStrategy::initialize_info_pack(const model::Wizard &self, const model::World &world, const model::Game &game) {
@@ -371,7 +394,7 @@ void MyStrategy::each_tick_update(const model::Wizard &self, const model::World 
     //Calculate danger map
     update_damage_map();
 
-    m_pf->update_info(m_i, m_danger_map);
+    m_pf->update_info(m_i, m_damage_map);
     m_ev->update_info(m_i);
     m_sb->update_info(m_i);
     for (int i = 0; i < BH_COUNT; ++i) {
@@ -468,90 +491,118 @@ geom::Vec2D MyStrategy::potential_vector(const Point2D &pt, const std::vector<co
 
 void MyStrategy::update_damage_map() {
 
-    m_danger_map.clear();
-    auto &damage_fields = m_danger_map;
+    m_damage_map.clear();
+    auto &damage_fields = m_damage_map;
 
-    const auto &creeps = m_i.ew->get_hostile_creeps();
-    const auto &wizards = m_i.ew->get_hostile_wizards();
-    const double ME_RETREAT_SPEED = m_i.g->getWizardBackwardSpeed() * m_i.ew->get_wizard_movement_factor(*m_i.s);
+    const double my_speed = m_i.g->getWizardBackwardSpeed() * m_i.ew->get_wizard_movement_factor(*m_i.s);
+    const double my_radius = m_i.s->getRadius();
 
-    const auto &add_unit_damage_fields = [&damage_fields](const Point2D &unit_center,
-                                                          double attack_range,
-                                                          double dead_zone_r) {
-        damage_fields.add_field(
-            std::make_unique<fields::ExpRingField>(
-                unit_center,
-                0,
-                8000,
-                false,
-                fields::ExpConfig::from_two_points(config::DAMAGE_ZONE_CURVATURE, config::DAMAGE_MAX_FEAR, dead_zone_r)
-            )
-        );
-    };
+    //const double life_factor = BehaviourConfig::hp_factor(m_i.s->getLife(), m_i.s->getMaxLife());
+    //const double klife = 1.0 + life_factor;
 
-    const RunawayUnit me{m_i.s->getLife(), m_i.s->getMaxLife(), ME_RETREAT_SPEED};
-    for (const Minion *i : creeps) {
-        double attack_range;
-        if (i->getType() == MINION_ORC_WOODCUTTER) {
-            attack_range = m_i.g->getOrcWoodcutterAttackRange();
+    for (const auto &i : m_i.ew->get_hostile_creeps()) {
+        const Point2D unit_center{i->getX(), i->getY()};
+        double at_range;
+        double force;
+        if (i->getType() == MINION_FETISH_BLOWDART) {
+            at_range = m_i.g->getFetishBlowdartAttackRange();
+            force = BehaviourConfig::damage.fetish/* * klife*/;
         } else {
-            attack_range = m_i.g->getFetishBlowdartAttackRange();
+            at_range = m_i.g->getOrcWoodcutterAttackRange();
+            force = BehaviourConfig::damage.orc/* * klife*/;
         }
-        attack_range += m_i.s->getRadius();
+        at_range += my_radius;
+        //at_range += m_i.behaviour.danger.minion_w * life_factor;
 
-        if (i->getType() == MINION_ORC_WOODCUTTER) {
-            damage_fields.add_field(std::make_unique<fields::ConstField>(
-                Point2D{i->getX(), i->getY()},
-                0, m_i.s->getRadius() + m_i.g->getOrcWoodcutterAttackRange(),
-                70
+        double d1 = at_range - i->getRemainingActionCooldownTicks() * my_speed;
+
+        if (d1 >= 1) {
+            damage_fields.add_field(std::make_unique<fields::LinearField>(
+                unit_center, 0, d1, -force / d1, BehaviourConfig::damage.center_mult * force
             ));
         } else {
-            damage_fields.add_field(std::make_unique<fields::ConstField>(
-                Point2D{i->getX(), i->getY()},
-                0, m_i.g->getFetishBlowdartAttackRange() + m_i.s->getRadius(),
-                2
+            d1 = 0;
+        }
+
+        if (!eps_equal(d1, at_range)) {
+            damage_fields.add_field(std::make_unique<fields::LinearField>(
+                unit_center, d1, at_range,
+                -force / (at_range - d1),
+                force + (force / (at_range - d1)) * d1
             ));
         }
     }
-    for (const auto &i : wizards) {
-        const double attack_range = i->getCastRange() + m_i.s->getRadius() + m_i.g->getMagicMissileRadius();
-        const AttackUnit enemy{i->getRemainingActionCooldownTicks(),
-                               m_i.g->getMagicMissileCooldownTicks(),
-                               m_i.g->getMagicMissileDirectDamage(),
-                               attack_range,
-                               m_i.g->getWizardForwardSpeed()};
-        double dead_zone_r = Eviscerator::calc_dead_zone(me, enemy);
-        add_unit_damage_fields({i->getX(), i->getY()}, attack_range, dead_zone_r);
-    }
 
-    for (const auto &tower : m_i.ew->get_hostile_towers()) {
-        double attack_range = tower.getAttackRange() + m_i.s->getRadius();
-        const AttackUnit enemy{tower.getRemainingActionCooldownTicks(),
-                               tower.getCooldown(),
-                               tower.getDamage(),
-                               attack_range,
-                               0};
-        double dead_zone_r = Eviscerator::calc_dead_zone(me, enemy);
-        bool under_attack = m_ev->tower_maybe_attack_me(tower);
-        double cost = config::DAMAGE_MAX_FEAR;
-        if (under_attack) {
-            cost *= 50;
+    for (const auto &i : m_i.ew->get_hostile_wizards()) {
+        const Point2D unit_center{i->getX(), i->getY()};
+        const double at_range = i->getCastRange() + my_radius;
+        //TODO: Respect mana
+        //TODO: Respect skills (fireball, frostbolt, ultimate magic missile)
+        //TODO: Respect haste increased turn speed
+        int rem_cooldown = i->getRemainingActionCooldownTicks();
+        const double angle_to_me = std::abs(i->getAngleTo(*m_i.s));
+        rem_cooldown += static_cast<int>(ceil(angle_to_me / m_i.g->getWizardMaxTurnAngle()));
+
+        double d1 = at_range - i->getRemainingActionCooldownTicks() * my_speed;
+        const double force = BehaviourConfig::damage.wizard;
+        if (d1 >= 1) {
+            damage_fields.add_field(std::make_unique<fields::LinearField>(
+                unit_center, 0, d1, -force / d1, BehaviourConfig::damage.center_mult * force
+            ));
+        } else {
+            d1 = 0;
         }
-        damage_fields.add_field(
-            std::make_unique<fields::ExpRingField>(
-                tower.getPoint(),
-                0,
-                tower.getAttackRange() + 1,
-                false,
-                fields::ExpConfig::from_two_points(config::DAMAGE_ZONE_CURVATURE, cost, dead_zone_r)
-            )
-        );
 
-        VISUAL(circle(tower.getX(), tower.getY(), tower.getAttackRange(), 0x440000));
-        char buf[10];
-        sprintf(buf, "%3d", tower.getRemainingActionCooldownTicks());
-        VISUAL(text(tower.getX(), tower.getY() + 30, buf, 0x004400));
+        if (!eps_equal(d1, at_range)) {
+            damage_fields.add_field(std::make_unique<fields::LinearField>(
+                unit_center, d1, at_range,
+                -force / (at_range - d1),
+                force + (force / (at_range - d1)) * d1
+            ));
+        }
     }
+
+
+    for (const auto &i : m_i.ew->get_hostile_towers()) {
+        const Point2D unit_center{i.getX(), i.getY()};
+        const double at_range = i.getAttackRange() + 1;
+
+        double force;
+        if (m_ev->tower_maybe_attack_me(i)) {
+            force = BehaviourConfig::damage.tower_active;
+        } else {
+            force = BehaviourConfig::damage.tower;
+        }
+        //force *= klife;
+
+        const double retr_diff = i.getRemainingActionCooldownTicks() * my_speed;
+        double d1 = at_range - retr_diff;
+
+        if (d1 >= 1) {
+            damage_fields.add_field(std::make_unique<fields::LinearField>(
+                unit_center, 0, d1, -force / d1, BehaviourConfig::damage.center_mult * force
+            ));
+        } else {
+            d1 = 0;
+        }
+
+        damage_fields.add_field(std::make_unique<fields::LinearField>(
+            unit_center, d1, at_range,
+            -force / retr_diff,
+            force + (force / retr_diff) * d1
+        ));
+
+
+#ifdef RUNNING_LOCAL
+        {
+            char buf[10];
+            sprintf(buf, "%3d", i.getRemainingActionCooldownTicks());
+            VISUAL(text(i.getX(), i.getY() + 30, buf, 0x004400));
+        }
+#endif
+    }
+
+
 }
 
 void MyStrategy::visualise_field_maps(const std::vector<const fields::FieldMap *> &fmaps, const geom::Point2D &center) {
@@ -635,11 +686,11 @@ fields::FieldMap MyStrategy::create_danger_map() {
 
     for (const auto &i : m_i.ew->get_hostile_creeps()) {
         const double attack_range = i->getType() == MINION_ORC_WOODCUTTER ? m_i.g->getOrcWoodcutterAttackRange()
-                                                                       : m_i.g->getFetishBlowdartAttackRange();
+                                                                          : m_i.g->getFetishBlowdartAttackRange();
         //TODO: Respect minion angle as increased remaining cooldown
         DangerField::Config conf = {
             i->getDamage(),
-            attack_range,
+            attack_range + m_i.s->getRadius(),
             i->getRemainingActionCooldownTicks(),
             i->getCooldownTicks(),
             m_i.g->getMinionSpeed()

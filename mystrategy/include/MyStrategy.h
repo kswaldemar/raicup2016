@@ -59,7 +59,7 @@ private:
     std::unique_ptr<Eviscerator> m_ev;
     std::unique_ptr<SkillBuilder> m_sb;
     //Danger map
-    fields::FieldMap m_danger_map = fields::FieldMap(fields::FieldMap::ADD);
+    fields::FieldMap m_damage_map = fields::FieldMap(fields::FieldMap::ADD);
     std::array<MovementHandler, BH_COUNT> m_bhs;
 };
 

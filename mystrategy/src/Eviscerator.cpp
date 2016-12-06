@@ -232,12 +232,13 @@ void Eviscerator::destroy(model::Move &move, const geom::Point2D &center, double
 }
 
 bool Eviscerator::tower_maybe_attack_me(const MyBuilding &tower) {
+    auto enemy_faction = m_i->s->getFaction() == model::FACTION_ACADEMY ? model::FACTION_RENEGADES
+                                                                        : model::FACTION_ACADEMY;
     std::vector<const model::LivingUnit*> maybe_targets;
     geom::Vec2D dist;
     const double att_rad = tower.getAttackRange() * tower.getAttackRange();
     for (const auto &minion : m_i->w->getMinions()) {
-        if (minion.getFaction() != m_i->s->getFaction() && minion.getFaction() != model::FACTION_NEUTRAL) {
-            //Enemy
+        if (minion.getFaction() == enemy_faction) {
             continue;
         }
         bool active = std::abs(minion.getSpeedX()) + std::abs(minion.getSpeedY()) > 0
@@ -250,7 +251,7 @@ bool Eviscerator::tower_maybe_attack_me(const MyBuilding &tower) {
         }
     }
     for (const auto &wizard : m_i->w->getWizards()) {
-        if (wizard.isMe() || wizard.getFaction() != m_i->s->getFaction()) {
+        if (wizard.getFaction() == enemy_faction) {
             continue;
         }
         dist = {tower.getX() - wizard.getX(), tower.getY() - wizard.getY()};
@@ -269,12 +270,22 @@ bool Eviscerator::tower_maybe_attack_me(const MyBuilding &tower) {
         }
     }
 
+    bool can_attack = true;
     if (case1_hp < 1000) {
-        return m_i->s->getLife() == case1_hp;
+        can_attack = m_i->s->getLife() == case1_hp;
     } else if (case2_hp > 0) {
-        return m_i->s->getLife() == case2_hp;
+        can_attack = m_i->s->getLife() == case2_hp;
     }
-    return true;
+
+    //if (m_i->s->getDistanceTo(tower.getX(), tower.getY()) <= 610) {
+    //    if (can_attack) {
+    //        LOG("Tower definitely CAN attack me\n");
+    //    } else {
+    //        LOG("Tower cannot attack me!\n");
+    //    }
+    //}
+
+    return can_attack;
 }
 
 bool Eviscerator::can_shoot_to_target() const {

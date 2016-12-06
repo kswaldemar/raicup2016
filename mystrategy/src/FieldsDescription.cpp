@@ -20,15 +20,15 @@ double ConstField::calc_force(double sqr_x) const {
 }
 
 
-LinearField::LinearField(const geom::Point2D &center, double r1, double r2, double force)
+LinearField::LinearField(const geom::Point2D &center, double r1, double r2, double k, double c)
     : PotentialField(center, r1, r2),
-      m_force(force) {
+      m_k(k), m_c(c) {
 
 }
 
 double LinearField::calc_force(double sqr_x) const {
     const double x = sqrt(sqr_x);
-    return m_force - (m_force / m_r2) * x;
+    return m_k * x + m_c;
 }
 
 ExpConfig ExpConfig::from_two_points(double curvature, double y, double x) {
