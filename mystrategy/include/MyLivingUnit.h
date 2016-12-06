@@ -4,7 +4,7 @@
 
 #pragma once
 
-
+#include "Vec2D.h"
 #include "model/LivingUnit.h"
 
 class MyLivingUnit {
@@ -18,15 +18,25 @@ public:
 
     MyLivingUnit(MyLivingUnit::Type type, const model::LivingUnit &unit);
 
+    MyLivingUnit(MyLivingUnit::Type type, double x, double y, double radius, int life, int max_life);
+
     Type getType() const;
+
     double getX() const;
+
     double getY() const;
+
+    geom::Point2D getPoint() const;
+
     double getRadius() const;
+
     long long int getId() const;
+
     int getLife() const;
+
     int getMaxLife() const;
 
-private:
+protected:
     Type m_type;
     double m_x;
     double m_y;

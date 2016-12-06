@@ -5,7 +5,6 @@
 #include "PathFinder.h"
 #include "Logger.h"
 #include "VisualDebug.h"
-#include "Config.h"
 #include "BehaviourConfig.h"
 #include "model/LaneType.h"
 

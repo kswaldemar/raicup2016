@@ -4,7 +4,6 @@
 
 #include "model/ActionType.h"
 #include "model/Move.h"
-#include "Config.h"
 #include "Eviscerator.h"
 #include "FieldsDescription.h"
 #include "VisualDebug.h"
@@ -94,7 +93,7 @@ int Eviscerator::choose_enemy() {
                 break;
         }
 
-        if (dist > config::ENEMY_DETECT_RANGE) {
+        if (dist > 700) {
             return 0;
         }
         return cost

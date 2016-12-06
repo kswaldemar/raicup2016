@@ -15,6 +15,16 @@ MyLivingUnit::MyLivingUnit(MyLivingUnit::Type type_, const model::LivingUnit &un
 {
 }
 
+MyLivingUnit::MyLivingUnit(MyLivingUnit::Type type, double x, double y, double radius, int life, int max_life)
+    : m_type(type),
+      m_x(x),
+      m_y(y),
+      m_r(radius),
+      m_life(life),
+      m_max_life(max_life) {
+
+}
+
 MyLivingUnit::Type MyLivingUnit::getType() const {
     return m_type;
 }
@@ -41,4 +51,8 @@ int MyLivingUnit::getLife() const {
 
 int MyLivingUnit::getMaxLife() const {
     return m_max_life;
+}
+
+geom::Point2D MyLivingUnit::getPoint() const {
+    return {m_x, m_y};
 }

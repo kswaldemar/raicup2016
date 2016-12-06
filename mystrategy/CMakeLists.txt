@@ -6,7 +6,6 @@ set(sources
 
     src/MyStrategy.cpp
 
-    src/Config.cpp
     src/Eviscerator.cpp
     src/FieldMap.cpp
     src/FieldsDescription.cpp
@@ -21,6 +20,7 @@ set(sources
     src/MyLivingUnit.cpp
     src/MyBonus.cpp
     src/MyBuilding.cpp
+    src/MyWizard.cpp
 )
 file(GLOB headers include/*.h)
 

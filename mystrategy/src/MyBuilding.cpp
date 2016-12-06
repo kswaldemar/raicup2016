@@ -12,13 +12,9 @@ MyBuilding::MyBuilding(double x,
                        double attack_range,
                        int max_life,
                        int cooldown)
-    : m_x(x),
-      m_y(y),
-      m_radius(radius),
+    : MyLivingUnit(MyLivingUnit::STATIC, x, y, radius, max_life, max_life),
       m_damage(damage),
       m_attack_range(attack_range),
-      m_life(max_life),
-      m_max_life(max_life),
       m_cooldown(cooldown) {
 
     m_last_update = 0;
@@ -42,18 +38,6 @@ int MyBuilding::getRemainingActionCooldownTicks() const {
     return std::max(m_last_shoot_tick + m_cooldown - m_last_update, 0);
 }
 
-double MyBuilding::getX() const {
-    return m_x;
-}
-
-double MyBuilding::getY() const {
-    return m_y;
-}
-
-double MyBuilding::getRadius() const {
-    return m_radius;
-}
-
 int MyBuilding::getDamage() const {
     return m_damage;
 }
@@ -62,18 +46,6 @@ double MyBuilding::getAttackRange() const {
     return m_attack_range;
 }
 
-int MyBuilding::getLife() const {
-    return m_life;
-}
-
-int MyBuilding::getMaxLife() const {
-    return m_max_life;
-}
-
 int MyBuilding::getCooldown() const {
     return m_cooldown;
-}
-
-geom::Point2D MyBuilding::getPoint() const {
-    return {m_x, m_y};
 }

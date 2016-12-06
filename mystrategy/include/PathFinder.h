@@ -8,7 +8,6 @@
 #include "InfoPack.h"
 #include "Vec2D.h"
 #include "FieldMap.h"
-#include "Config.h"
 #include <array>
 
 /**
