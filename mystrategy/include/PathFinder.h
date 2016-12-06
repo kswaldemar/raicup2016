@@ -19,12 +19,12 @@ public:
     static constexpr int WAYPOINT_RADIUS = 100;
     static constexpr int WAYPOINT_SHIFT = 200;
     //Pathfind grid step
-    static constexpr int GRID_SIZE = 5;
+    static constexpr int GRID_SIZE = 10;
     //Hardcoded
     static constexpr int WORLD_SIZE = 4000;
     static constexpr int CELL_COUNT = (WORLD_SIZE + GRID_SIZE - 1)/ GRID_SIZE;
     //Max cell number to visit before manual halt (if more think there is no way)
-    static constexpr int ASTAR_MAX_VISIT = 5000;
+    static constexpr int ASTAR_MAX_VISIT = 7000;
 
     struct Cell {
         //To build path, after searching
@@ -76,7 +76,7 @@ private:
     bool update_cost(const geom::CellCoord &pt_from, const geom::CellCoord &pt_to);
 
     const InfoPack *m_i;
-    const fields::FieldMap *m_danger_map;
+    const fields::FieldMap *m_damage_map;
     std::array<std::array<Cell, CELL_COUNT>, CELL_COUNT> m_map;
     std::array<geom::Point2D, model::_LANE_COUNT_> m_last_wp;
     std::array<double, model::_LANE_COUNT_> m_lane_push_status;

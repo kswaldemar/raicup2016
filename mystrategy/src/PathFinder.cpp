@@ -11,6 +11,7 @@
 #include <map>
 #include <cassert>
 #include <queue>
+#include <BehaviourConfig.h>
 
 using geom::Point2D;
 
@@ -41,11 +42,17 @@ PathFinder::PathFinder(const InfoPack &info) {
 
 void PathFinder::update_info(const InfoPack &info, const fields::FieldMap &danger_map) {
     m_i = &info;
-    m_danger_map = &danger_map;
+    m_damage_map = &danger_map;
 
     //Calculate battle front for each lane
     std::array<double, model::_LANE_COUNT_> bfront;
     bfront.fill(1);
+
+    //If line pushed, go to enemy base
+    m_last_wp[model::LANE_TOP] = {3400, 200};
+    m_last_wp[model::LANE_BOTTOM] = {3800, 600};
+    m_last_wp[model::LANE_MIDDLE] = {3400, 600};
+
     for (const auto &i : m_i->ew->get_hostile_creeps()) {
         if (i->getFaction() == model::FACTION_NEUTRAL) {
             continue; //Neutral cannot push lane
@@ -105,8 +112,7 @@ void PathFinder::update_info(const InfoPack &info, const fields::FieldMap &dange
 }
 
 Point2D PathFinder::get_next_waypoint() {
-    const Point2D me{m_i->s->getX(), m_i->s->getY()};
-
+    //const Point2D me{m_i->s->getX(), m_i->s->getY()};
     //auto lane = get_lane_by_coord(me);
     //if (me.x <= 800 && me.y >= 3200) {
     //    //We are on base
@@ -137,9 +143,12 @@ Point2D PathFinder::get_next_waypoint() {
 
 Point2D PathFinder::get_previous_waypoint() {
     const Point2D me{m_i->s->getX(), m_i->s->getY()};
-    const auto lane = get_lane_by_coord(me);
 
-    //Dynamic wp as retreat point
+    auto lane = get_lane_by_coord(me);
+    if (lane == model::_LANE_UNKNOWN_) {
+        lane = m_current_lane;
+    }
+
     switch (lane) {
         case model::LANE_TOP:return top_lane_projection(me, -WAYPOINT_RADIUS - WAYPOINT_SHIFT);
         case model::LANE_MIDDLE:return middle_lane_projection(me, -WAYPOINT_RADIUS - WAYPOINT_SHIFT);
@@ -285,7 +294,7 @@ std::list<geom::Point2D> PathFinder::find_way(const geom::Point2D &to, double ra
     }
 
     //Heuristic function for A-star
-    //const auto &dmap = m_danger_map;
+    //const auto &dmap = m_damage_map;
     const auto astar_h = [](const Point2D &cur, const Point2D &target) {
         static const double D2 = sqrt(2);
         double dx = std::abs(cur.x - target.x);
@@ -424,7 +433,7 @@ bool PathFinder::update_cost(const geom::CellCoord &pt_from, const geom::CellCoo
     int dx = std::abs(pt_from.x - pt_to.x);
     int dy = std::abs(pt_from.y - pt_to.y);
     double mv_cost = D * (dx + dy) + (D2 - 2 * D) * std::min(dx, dy);
-
+    mv_cost += mv_cost * m_damage_map->get_value(cell_to_world(pt_from)) * BehaviourConfig::pathfinder_damage_mult;
     const Cell &cfrom = m_map[pt_from.x][pt_from.y];
     Cell &cto = m_map[pt_to.x][pt_to.y];
 

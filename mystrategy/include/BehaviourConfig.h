@@ -12,14 +12,18 @@ struct BehaviourConfig {
     static constexpr double danger_bonus_earn_t = 0.6;
     static constexpr double danger_scout_t = 0.6;
 
+    //Ratio to respect damage field values when calculate move cost
+    //1 - damage value 1 correspond to same distance
+    static constexpr double pathfinder_damage_mult = 1;
+
     //Normalized from 0 to 1
     static struct Damage {
 
         double center_mult = 2;
 
         double orc = 0.01;
-        double fetish = 0.01;
-        double tower = 0.01;
+        double fetish = 0.005;
+        double tower = 0.005;
         double tower_active = 0.5;
         double wizard = 0.02;
     } damage;
