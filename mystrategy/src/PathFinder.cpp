@@ -6,12 +6,12 @@
 #include "Logger.h"
 #include "VisualDebug.h"
 #include "Config.h"
+#include "BehaviourConfig.h"
 #include "model/LaneType.h"
 
 #include <map>
 #include <cassert>
 #include <queue>
-#include <BehaviourConfig.h>
 
 using geom::Point2D;
 
