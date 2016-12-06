@@ -72,7 +72,7 @@ private:
     std::vector<const model::Minion*> m_en_creeps;
     std::vector<const model::Wizard*> m_en_wizards;
     std::vector<MyBuilding> m_shadow_towers;
-    std::array<double, 10> m_wizard_speed_factor;
+    std::array<double, 11> m_wizard_speed_factor;
     geom::Point2D m_canvas_origin;
     Canvas m_im_draw;
 };

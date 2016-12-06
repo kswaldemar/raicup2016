@@ -58,7 +58,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     double danger_level = strategic_map.get_value(me);
 
     fields::FieldMap navigation(fields::FieldMap::MIN);
-    int nav_radius = 1000;
+    int nav_radius = 2000;
 
     int best_enemy = m_ev->choose_enemy();
     const bool have_target = best_enemy > 0;
