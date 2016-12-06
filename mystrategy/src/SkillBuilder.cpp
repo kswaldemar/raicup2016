@@ -18,6 +18,8 @@ void SkillBuilder::update_info(const InfoPack &info) {
     m_i = &info;
 
     const auto &skills = m_i->s->getSkills();
+
+    m_build_idx = static_cast<int>(m_i->s->getId() % 2);
     //if (m_i->w->getTickIndex() % 100 == 0) {
     //    LOG("Skill count = %lu; my XP = %d\n", skills.size(), m_i->s->getXp());
     //}
@@ -26,15 +28,23 @@ void SkillBuilder::update_info(const InfoPack &info) {
 
 void SkillBuilder::try_level_up(model::Move &move) const {
 
-    static const std::vector<Skill> build {
-        FIRE, FIRE, FIRE, FIRE, FIRE,
-        SHIELD, SHIELD, SHIELD, SHIELD, SHIELD,
-        HASTE, HASTE, HASTE, HASTE,
+    static const std::vector<Skill> build_mm {
         RANGE, RANGE, RANGE, RANGE, RANGE,
+        SHIELD, SHIELD, SHIELD, SHIELD, SHIELD,
+        FIRE, FIRE, FIRE, FIRE, FIRE,
+        HASTE, HASTE, HASTE, HASTE,
         WATER, WATER, WATER, WATER,
     };
 
-    move.setSkillToLearn(learn_next_skill(build));
+    static const std::vector<Skill> build_fireball {
+        FIRE, FIRE, FIRE, FIRE, FIRE,
+        RANGE, RANGE, RANGE, RANGE, RANGE,
+        SHIELD, SHIELD, SHIELD, SHIELD, SHIELD,
+        HASTE, HASTE, HASTE, HASTE,
+        WATER, WATER, WATER, WATER,
+    };
+
+    move.setSkillToLearn(learn_next_skill(m_build_idx == 0 ? build_mm : build_fireball));
 
 }
 

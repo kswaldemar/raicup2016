@@ -27,6 +27,7 @@ public:
 
 private:
     const InfoPack *m_i;
+    int m_build_idx;
 };
 
 
