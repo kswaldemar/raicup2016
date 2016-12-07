@@ -15,6 +15,7 @@ using namespace geom;
 
 BehaviourConfig::Damage BehaviourConfig::damage = BehaviourConfig::Damage();
 BehaviourConfig::NavK BehaviourConfig::navigation_k = BehaviourConfig::NavK();
+BehaviourConfig::BulletF BehaviourConfig::bullet = BehaviourConfig::BulletF();
 
 MyStrategy::MyStrategy() {
 }
@@ -241,7 +242,10 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         }
     }
 
-    dir = potential_vector(me, {&m_damage_map, &navigation});
+
+    const auto &bullets_map = m_ev->get_bullet_damage_map();
+
+    dir = potential_vector(me, {&m_damage_map, &navigation, &bullets_map});
     if (dir.len() > EPS) {
         m_pf->move_along(dir, move, hold_face);
     }
@@ -287,11 +291,11 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         move.setAction(ACTION_HASTE);
     }
 
-
     visualise_field_maps(
         {
-            &m_damage_map,
-            //&navigation
+            //&m_damage_map,
+            //&navigation,
+            &bullets_map,
         },
         me
     );
@@ -299,6 +303,10 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     VISUAL(endPre());
 
     VISUAL(beginPost());
+
+    //m_ev->m_bhandler.visualise_projectiles();
+    ////
+    //m_ev->m_bhandler.check_projectiles_hit(me, self.getRadius());
 
     //for (const auto &i : m_i.ew->get_obstacles()) {
     //    VISUAL(fillCircle(i.getX(), i.getY(), 5, 0x550011));
@@ -323,31 +331,31 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     }
 #endif
 
-
-#ifdef RUNNING_LOCAL
-    dir *= 3;
-    VISUAL(line(self.getX(), self.getY(), self.getX() + dir.x, self.getY() + dir.y, 0xB325DA));
-    char buf[10];
-    char c = 'N';
-    assert(current_action != BH_COUNT);
-    switch (current_action) {
-        case BH_MINIMIZE_DANGER:c = 'M';
-            break;
-        case BH_ATTACK:c = 'A';
-            break;
-        case BH_SCOUT:c = 'R';
-            break;
-        case BH_EARN_BONUS: c = 'B';
-            break;
-    }
-    sprintf(buf, "%c %3.1lf%%", c, m_damage_map.get_value(self.getX(), self.getY()));
-    VISUAL(text(self.getX() - 70, self.getY() - 60, buf, 0xFF0000));
-    sprintf(buf, "[%5.5lf]", strategic_map.get_value(me));
-    VISUAL(text(me.x - 70, me.y - 80, buf, 0xFF9900));
-    //Vec2D spd{self.getSpeedX(), self.getSpeedY()};
-    //sprintf(buf, "spd %3.1lf", spd.len());
-    //VISUAL(text(self.getX(), self.getY() - 70, buf, 0x009911));
-#endif
+//
+//#ifdef RUNNING_LOCAL
+//    dir *= 3;
+//    VISUAL(line(self.getX(), self.getY(), self.getX() + dir.x, self.getY() + dir.y, 0xB325DA));
+//    char buf[10];
+//    char c = 'N';
+//    assert(current_action != BH_COUNT);
+//    switch (current_action) {
+//        case BH_MINIMIZE_DANGER:c = 'M';
+//            break;
+//        case BH_ATTACK:c = 'A';
+//            break;
+//        case BH_SCOUT:c = 'R';
+//            break;
+//        case BH_EARN_BONUS: c = 'B';
+//            break;
+//    }
+//    sprintf(buf, "%c %3.1lf%%", c, m_damage_map.get_value(self.getX(), self.getY()));
+//    VISUAL(text(self.getX() - 70, self.getY() - 60, buf, 0xFF0000));
+//    sprintf(buf, "[%5.5lf]", strategic_map.get_value(me));
+//    VISUAL(text(me.x - 70, me.y - 80, buf, 0xFF9900));
+//    //Vec2D spd{self.getSpeedX(), self.getSpeedY()};
+//    //sprintf(buf, "spd %3.1lf", spd.len());
+//    //VISUAL(text(self.getX(), self.getY() - 70, buf, 0x009911));
+//#endif
 
 
     VISUAL(endPost());

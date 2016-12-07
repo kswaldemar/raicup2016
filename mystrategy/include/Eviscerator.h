@@ -4,14 +4,17 @@
 
 #pragma once
 
-#include "model/Move.h"
-#include "model/Building.h"
-#include "model/Wizard.h"
-#include "model/Minion.h"
 #include "Vec2D.h"
 #include "InfoPack.h"
 #include "PotentialField.h"
 #include "UnitDesc.h"
+#include "BulletHandler.h"
+#include "FieldMap.h"
+#include "model/Move.h"
+#include "model/Building.h"
+#include "model/Wizard.h"
+#include "model/Minion.h"
+
 
 #include <memory>
 #include <map>
@@ -72,6 +75,10 @@ public:
 
     bool can_leave_battlefield() const;
 
+    const fields::FieldMap &get_bullet_damage_map() const;
+
+    BulletHandler m_bhandler;
+
 private:
     const InfoPack *m_i;
     //Set up in choose enemy
@@ -79,4 +86,6 @@ private:
     //Minion target and distance to target
     std::map<long long int, std::pair<const model::LivingUnit *, double>> m_minion_target_by_id;
     std::vector<EnemyDesc> m_possible_targets;
+    fields::FieldMap m_bullet_map = fields::FieldMap(fields::FieldMap::ADD);
+
 };

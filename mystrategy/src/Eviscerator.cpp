@@ -66,6 +66,35 @@ void Eviscerator::update_info(const InfoPack &info) {
             m_minion_target_by_id[enemy->getId()] = std::make_pair(choosen, min_dist);
         }
     }
+
+    m_bhandler.update_projectiles(*info.w, *info.g);
+    m_bullet_map.clear();
+    const geom::Point2D me{m_i->s->getX(), m_i->s->getY()};
+    const double my_radius = m_i->s->getRadius();
+    const double my_speed = m_i->g->getWizardBackwardSpeed() * m_i->ew->get_wizard_movement_factor(*m_i->s);
+    for (const auto &i : m_bhandler.get_bullets()) {
+        auto hds = BulletHandler::calc_hit_description(i, me, my_radius);
+
+        const double k = (BehaviourConfig::bullet.missile / (my_radius + i.radius + 1)) / 2.0;
+        bool create = true;
+
+        if (hds.ticks > 0) {
+            //TODO: Check possible evasion through simulation
+            const double extra_dist = i.radius + my_radius - hds.dist;
+            int need_time = static_cast<int>(ceil(extra_dist / my_speed));
+            if (need_time > hds.ticks) {
+                //Need more time, impossible to evade
+                create = false;
+            }
+        }
+
+        if (create) {
+            m_bullet_map.add_field(std::make_unique<fields::LinearField>(
+                hds.hit_pt, 0, my_radius + i.radius + 1,
+                -k, BehaviourConfig::bullet.missile
+            ));
+        }
+    }
 }
 
 double Eviscerator::choose_enemy() {
@@ -356,4 +385,8 @@ bool Eviscerator::is_minion_attack_me(const model::Minion &creep) const {
 bool Eviscerator::can_leave_battlefield() const {
     //TODO: Check that there is no tower which can be destroyed
     return m_possible_targets.empty() || m_possible_targets.front().score < 2000;
+}
+
+const fields::FieldMap &Eviscerator::get_bullet_damage_map() const {
+    return m_bullet_map;
 }

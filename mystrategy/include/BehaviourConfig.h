@@ -43,10 +43,12 @@ struct BehaviourConfig {
     } navigation_k;
 
     static constexpr double enemy_detect_distance = 700;
-    //static struct Score {
-    //    int orc;
-    //    int fetish;
-    //    int tower;
-    //    int wizard;
-    //} targeting;
+
+    //Bullet evading value
+    static struct BulletF {
+        double missile = 1.0;
+        //double frost_bolt = 1.0;
+        //double fireball = 1.0;
+        //double dart = 1.0;
+    } bullet;
 };

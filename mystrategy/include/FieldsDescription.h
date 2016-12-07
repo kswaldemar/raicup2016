@@ -4,9 +4,6 @@
 
 #pragma once
 
-/**
- * Описание определенных полей, которые наследуются от IVectorField
- */
 #include "PotentialField.h"
 #include "MyBuilding.h"
 
@@ -64,7 +61,6 @@ protected:
     int m_life;
     int m_max_life;
     Config m_enemy;
-
 };
 
 }
