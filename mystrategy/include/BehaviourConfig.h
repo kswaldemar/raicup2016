@@ -22,7 +22,7 @@ struct BehaviourConfig {
         double center_mult = 2;
 
         double orc = 0.01;
-        double fetish = 0.005;
+        double fetish = 0.01;
         double tower = 0.005;
         double tower_active = 0.5;
         double wizard = 0.02;
