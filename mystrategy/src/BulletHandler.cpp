@@ -47,8 +47,24 @@ void BulletHandler::update_projectiles(const model::World &world, const model::G
         }
     }
 
+    const int my_faction = world.getMyPlayer().getFaction();
+    std::set<long long int> friendly_projectiles;
+    for (const auto &i : world.getMinions()) {
+        if (i.getType() == model::MINION_FETISH_BLOWDART && i.getFaction() == my_faction) {
+            friendly_projectiles.insert(i.getId());
+        }
+    }
+    for (const auto &i : world.getWizards()) {
+        if (i.getFaction() == my_faction) {
+            friendly_projectiles.insert(i.getId());
+        }
+    }
+
+
+
     for (const auto &i : world.getProjectiles()) {
-        if (i.getOwnerPlayerId() == world.getMyPlayer().getId()) {
+        if (friendly_projectiles.find(i.getOwnerUnitId()) != friendly_projectiles.end()) {
+            //Hope it will not hurt me
             continue;
         }
         auto it = std::find_if(m_bullets.begin(), m_bullets.end(),

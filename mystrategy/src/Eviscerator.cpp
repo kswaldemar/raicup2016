@@ -209,11 +209,20 @@ Eviscerator::DestroyDesc Eviscerator::destroy(model::Move &move) {
         min_range = m_i->s->getCastRange() + unit.getRadius();
     }
 
-    VISUAL(line(m_i->s->getX(), m_i->s->getY(), unit.getX(), unit.getY(), 0x0000FF));
-
     if (m_target->type == EnemyDesc::Type::WIZARD && unit.getLife() < 50) {
         min_range -= (50 - unit.getLife()) * 2;
     }
+
+    //Change aim point to hit if it moving forward
+    geom::Point2D target_pt = {unit.getX(), unit.getY()};
+    if (m_target->type == EnemyDesc::Type::WIZARD) {
+        geom::Vec2D shift = geom::sincos(unit.getAngle());
+        shift *= 8.0;
+        target_pt += shift;
+    }
+
+
+    VISUAL(line(m_i->s->getX(), m_i->s->getY(), target_pt.x, target_pt.y, 0x0000FF));
 
     VISUAL(circle(unit.getX(), unit.getY(), min_range, 0x004400));
     VISUAL(circle(unit.getX(), unit.getY(), 700, 0x008800));
@@ -262,7 +271,7 @@ Eviscerator::DestroyDesc Eviscerator::destroy(model::Move &move) {
         }
     }
 
-    const double angle = m_i->s->getAngleTo(unit);
+    const double angle = m_i->s->getAngleTo(target_pt.x, target_pt.y);
     const double can_shoot = std::abs(angle) < m_i->g->getStaffSector() / 2.0;
 
     move.setCastAngle(angle);
