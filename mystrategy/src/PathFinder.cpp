@@ -78,6 +78,10 @@ void PathFinder::update_info(const InfoPack &info, const fields::FieldMap &dange
         }
     }
     for (const auto &i : m_i->ew->get_hostile_towers()) {
+        if (i.getMaxLife() == m_i->g->getFactionBaseLife()) {
+            //Exclude faction base
+            continue;
+        }
         const geom::Point2D pt = i.getPoint();
         auto lane = get_lane_by_coord(pt);
         double front = 1;
@@ -445,5 +449,5 @@ bool PathFinder::update_cost(const geom::CellCoord &pt_from, const geom::CellCoo
 }
 
 bool PathFinder::bonuses_is_under_control() const {
-    return m_lane_push_status[m_current_lane] > 0.4;
+    return m_lane_push_status[m_current_lane] > 0.4 && m_lane_push_status[m_current_lane] < 0.82;
 }
