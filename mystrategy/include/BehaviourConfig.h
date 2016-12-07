@@ -51,4 +51,23 @@ struct BehaviourConfig {
         //double fireball = 1.0;
         //double dart = 1.0;
     } bullet;
+
+    static struct Targeting {
+        double fetish_1 = 600;
+        double fetish_2 = 800;
+        double orc_1 = 300;
+        double orc_2 = 500;
+        double tower_1 = 100;
+        double tower_2 = 1500;
+
+        double minion_attack_extra = 1500;
+        double minion_attack_my_hp_extra = 2000;
+        double wizard_in_range = 1000;
+        double wizard_1 = 0;
+        double wizard_2 = 1500;
+
+        double dist_w = 200;
+
+        double can_leave = 1350;
+    } targeting;
 };

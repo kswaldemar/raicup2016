@@ -16,6 +16,8 @@ using namespace geom;
 BehaviourConfig::Damage BehaviourConfig::damage = BehaviourConfig::Damage();
 BehaviourConfig::NavK BehaviourConfig::navigation_k = BehaviourConfig::NavK();
 BehaviourConfig::BulletF BehaviourConfig::bullet = BehaviourConfig::BulletF();
+BehaviourConfig::Targeting BehaviourConfig::targeting = BehaviourConfig::Targeting();
+
 
 MyStrategy::MyStrategy() {
 }

@@ -100,20 +100,7 @@ void Eviscerator::update_info(const InfoPack &info) {
 double Eviscerator::choose_enemy() {
     m_possible_targets.clear();
 
-    double fetish_1 = 500;
-    double fetish_2 = 600;
-    double orc_1 = 200;
-    double orc_2 = 300;
-    double tower_1 = 100;
-    double tower_2 = 1000;
-
-    double wizard_in_range = 700;
-    double wizard_hp_extra = 2000;
-
-    double minion_attack_extra = 1000;
-    double minion_attack_my_hp_extra = 1500;
-
-    double dist_w = 200;
+    const auto &conf = BehaviourConfig::targeting;
 
     double score;
     for (const auto &i : m_i->ew->get_hostile_creeps()) {
@@ -125,17 +112,18 @@ double Eviscerator::choose_enemy() {
 
         const double life_ratio = 1.0 - static_cast<double>(i->getLife()) / i->getMaxLife();
         if (i->getType() == model::MINION_ORC_WOODCUTTER) {
-            score = orc_1;
-            score += (orc_2 - orc_1) * life_ratio;
+            score = conf.orc_1;
+            score += (conf.orc_2 - conf.orc_1) * life_ratio;
         } else {
-            score = fetish_1;
-            score += (fetish_2 - fetish_1) * life_ratio;
+            score = conf.fetish_1;
+            score += (conf.fetish_2 - conf.fetish_1) * life_ratio;
         }
-        score += (1.0 - dist / BehaviourConfig::enemy_detect_distance) * dist_w;
+        score += (1.0 - dist / BehaviourConfig::enemy_detect_distance) * conf.dist_w;
 
         if (is_minion_attack_me(*i)) {
-            score += minion_attack_extra;
-            score += minion_attack_my_hp_extra * (1.0 - static_cast<double>(m_i->s->getLife())/ m_i->s->getMaxLife());
+            score += conf.minion_attack_extra;
+            score +=
+                conf.minion_attack_my_hp_extra * (1.0 - static_cast<double>(m_i->s->getLife()) / m_i->s->getMaxLife());
         }
 
         m_possible_targets.emplace_back(
@@ -155,10 +143,10 @@ double Eviscerator::choose_enemy() {
         if (dist > BehaviourConfig::enemy_detect_distance) {
             continue;
         }
-        score = tower_1;
+        score = conf.tower_1;
         const double life_ratio = 1.0 - static_cast<double>(i.getLife()) / i.getMaxLife();
-        score += (tower_2 - tower_1) * life_ratio;
-        score += (1.0 - dist / BehaviourConfig::enemy_detect_distance) * dist_w;
+        score += (conf.tower_2 - conf.tower_1) * life_ratio;
+        score += (1.0 - dist / BehaviourConfig::enemy_detect_distance) * conf.dist_w;
 
         m_possible_targets.emplace_back(&i, EnemyDesc::Type::TOWER, score);
     }
@@ -169,22 +157,26 @@ double Eviscerator::choose_enemy() {
             continue;
         }
 
-        score = (1.0 - dist / BehaviourConfig::enemy_detect_distance) * dist_w;
+        score = (1.0 - dist / BehaviourConfig::enemy_detect_distance) * conf.dist_w;
 
         //TODO: Improve with bullet prediction
         double extra = 0;
         if (dist - i->getRadius() < m_i->s->getCastRange()) {
-            score += wizard_in_range;
+            score += conf.wizard_in_range;
         }
 
         const double life_ratio = 1.0 - static_cast<double>(i->getLife()) / i->getMaxLife();
-        score += wizard_hp_extra * life_ratio;
+        score += (conf.wizard_2 - conf.wizard_1) * life_ratio;
         m_possible_targets.emplace_back(i, EnemyDesc::Type::WIZARD, score);
     }
 
-    std::sort(m_possible_targets.begin(), m_possible_targets.end(), [](const EnemyDesc &lhs, const EnemyDesc &rhs) -> bool {
-        return lhs.score > rhs.score;
-    });
+    std::sort(
+        m_possible_targets.begin(),
+        m_possible_targets.end(),
+        [](const EnemyDesc &lhs, const EnemyDesc &rhs) -> bool {
+            return lhs.score > rhs.score;
+        }
+    );
 
     if (m_possible_targets.empty()) {
         return 0;
@@ -393,7 +385,7 @@ bool Eviscerator::is_minion_attack_me(const model::Minion &creep) const {
 
 bool Eviscerator::can_leave_battlefield() const {
     //TODO: Check that there is no tower which can be destroyed
-    return m_possible_targets.empty() || m_possible_targets.front().score < 2000;
+    return m_possible_targets.empty() || m_possible_targets.front().score < BehaviourConfig::targeting.can_leave;
 }
 
 const fields::FieldMap &Eviscerator::get_bullet_damage_map() const {
