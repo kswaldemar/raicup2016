@@ -6,7 +6,7 @@
 
 struct BehaviourConfig {
     //How long enemy wizard can pursuit us. More value - more fearing of enemy wizards
-    static constexpr int max_runaway_time = 200;
+    static constexpr int max_runaway_time = 250;
     //General decision values
     static constexpr double danger_attack_t = 0.7; ///< Maximum danger value to attack
     static constexpr double danger_bonus_earn_t = 0.6;
@@ -21,11 +21,12 @@ struct BehaviourConfig {
 
         double center_mult = 2;
 
-        double orc = 0.01;
-        double fetish = 0.01;
+        double orc = 0.015;
+        double fetish = 0.015;
+        double minion_extra_r = 100;
         double tower = 0.005;
         double tower_active = 0.5;
-        double wizard = 0.02;
+        double wizard = 0.015;
     } damage;
 
     //Normalized from 0 to 1
@@ -39,7 +40,7 @@ struct BehaviourConfig {
 
         //TODO: Use different values for each kind of enemy
         //TODO: Force should depend on enemy HP
-        double attack = 0.0008;
+        double attack = 0.0010;
     } navigation_k;
 
     static constexpr double enemy_detect_distance = 700;

@@ -536,6 +536,8 @@ void MyStrategy::update_damage_map() {
             d1 = 0;
         }
 
+        at_range += BehaviourConfig::damage.minion_extra_r * life_factor;
+
 
         if (!eps_equal(d1, at_range)) {
             damage_fields.add_field(std::make_unique<fields::LinearField>(

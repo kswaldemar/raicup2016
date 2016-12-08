@@ -428,7 +428,9 @@ bool PathFinder::update_cost(const geom::CellCoord &pt_from, const geom::CellCoo
         //Maybe it is tree
         if (obst && obst->getType() == MyLivingUnit::TREE) {
             int time_to_cut = (obst->getLife() / 12) * 60;
-            time_to_cut += m_i->s->getRemainingActionCooldownTicks();
+            if (time_to_cut == 0) {
+                time_to_cut = 7;
+            }
             const double my_speed = m_i->g->getWizardForwardSpeed() * m_i->ew->get_wizard_movement_factor(*m_i->s);
             mv_cost += (time_to_cut * my_speed);
         }
