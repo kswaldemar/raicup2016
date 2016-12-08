@@ -78,7 +78,6 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             if (m_bhs[BH_ATTACK].is_path_spoiled()) {
                 auto way = m_pf->find_way({description.unit->getX(), description.unit->getY()},
                                           description.att_range - PathFinder::GRID_SIZE);
-                smooth_path(me, way);
                 m_bhs[BH_ATTACK].load_path(
                     std::move(way),
                     *description.unit
@@ -125,7 +124,6 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             if (best != nullptr) {
                 m_bhs[BH_EARN_BONUS].update_target(best->getPoint(), game.getBonusRadius() + 5);
                 auto way = m_pf->find_way(best->getPoint(), game.getBonusRadius() + 5);
-                smooth_path(me, way);
                 m_bhs[BH_EARN_BONUS].load_path(
                     std::move(way),
                     best->getPoint(),
@@ -177,7 +175,6 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         m_bhs[BH_SCOUT].update_target(wp_next, PathFinder::WAYPOINT_RADIUS);
         if (m_bhs[BH_SCOUT].is_path_spoiled()) {
             auto way = m_pf->find_way(wp_next, PathFinder::WAYPOINT_RADIUS - PathFinder::GRID_SIZE);
-            smooth_path(me, way);
             m_bhs[BH_SCOUT].load_path(
                 std::move(way),
                 wp_next,
@@ -221,7 +218,6 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             if (m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled() && not_moved) {
                 //Possibly stuck in place
                 auto way = m_pf->find_way(wp_prev, PathFinder::WAYPOINT_RADIUS - PathFinder::GRID_SIZE);
-                smooth_path(me, way);
                 m_bhs[BH_MINIMIZE_DANGER].update_target(wp_prev, PathFinder::WAYPOINT_RADIUS);
                 m_bhs[BH_MINIMIZE_DANGER].load_path(
                     std::move(way),
@@ -262,8 +258,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         ) {
         //We will meet collision soon
         VISUAL(fillCircle(waypoint.x, waypoint.y, 10, 0x990000));
-        //TODO: Choose nearest obstacle
-        if (block_obstacle && block_obstacle->getType() == MyLivingUnit::STATIC) {
+        if (block_obstacle && block_obstacle->getType() == MyLivingUnit::TREE) {
             m_ev->destroy(move, {block_obstacle->getX(), block_obstacle->getY()}, block_obstacle->getRadius());
             destroy_obstacle = true;
         }
@@ -657,18 +652,6 @@ void MyStrategy::visualise_field_maps(const std::vector<const fields::FieldMap *
         }
     }
 #endif
-}
-
-void MyStrategy::smooth_path(const geom::Point2D &me, std::list<geom::Point2D> &path) {
-    auto almost_last = path.cend();
-    --almost_last;
-    for (auto it = path.cbegin(); it != almost_last;) {
-        if (m_i.ew->line_of_sight(me.x, me.y, it->x, it->y)) {
-            it = path.erase(it);
-        } else {
-            break;
-        }
-    }
 }
 
 fields::FieldMap MyStrategy::create_danger_map() {

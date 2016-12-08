@@ -12,7 +12,7 @@ MyBuilding::MyBuilding(double x,
                        double attack_range,
                        int max_life,
                        int cooldown)
-    : MyLivingUnit(MyLivingUnit::STATIC, x, y, radius, max_life, max_life),
+    : MyLivingUnit(MyLivingUnit::TOWER, x, y, radius, max_life, max_life),
       m_damage(damage),
       m_attack_range(attack_range),
       m_cooldown(cooldown) {

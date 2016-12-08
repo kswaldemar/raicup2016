@@ -115,32 +115,6 @@ void PathFinder::update_info(const InfoPack &info, const fields::FieldMap &dange
 }
 
 Point2D PathFinder::get_next_waypoint() {
-    //const Point2D me{m_i->s->getX(), m_i->s->getY()};
-    //auto lane = get_lane_by_coord(me);
-    //if (me.x <= 800 && me.y >= 3200) {
-    //    //We are on base
-    //    lane = m_current_lane;
-    //}
-    //if (lane != m_current_lane) {
-    //    //We are too far, return last point in lane
-    //    return m_last_wp[m_current_lane];
-    //} else {
-    //    //Update last wp
-    //    double battle_front = 0;
-    //    switch (lane) {
-    //        case model::LANE_TOP:
-    //            m_last_wp[lane] = top_lane_projection(me, WAYPOINT_RADIUS + WAYPOINT_SHIFT, &battle_front);
-    //            break;
-    //        case model::LANE_MIDDLE:
-    //            m_last_wp[lane] = middle_lane_projection(me, WAYPOINT_RADIUS + WAYPOINT_SHIFT, &battle_front);
-    //            break;
-    //        case model::LANE_BOTTOM:
-    //            m_last_wp[lane] = bottom_lane_projection(me, WAYPOINT_RADIUS + WAYPOINT_SHIFT, &battle_front);
-    //            break;
-    //        default: break;
-    //    }
-    //}
-
     return m_last_wp[m_current_lane];
 }
 
@@ -329,10 +303,11 @@ std::list<geom::Point2D> PathFinder::find_way(const geom::Point2D &to, double ra
     int visited_cells = 0;
     const auto sqrradius = radius * radius;
     const Cell *found = nullptr;
-    bool first = true;
     geom::CellCoord nearest = initial;
     int min_manh = 100000000;
     const geom::CellCoord cell_target = world_to_cell(to);
+    const double my_radius = m_i->s->getRadius();
+    bool first = true;
     while (!open.empty()) {
         geom::CellCoord next = open.top().pt;
         //LOG("Looking cell (%d, %d) with cost %lf\n", next.x, next.y, open.top().cost);
@@ -351,13 +326,18 @@ std::list<geom::Point2D> PathFinder::find_way(const geom::Point2D &to, double ra
         }
 
         Point2D wnext = cell_to_world(next);
-        if (closed[next.x][next.y]
-            || !is_correct_cell(next, initial)
-            || (!first && !m_i->ew->check_no_collision(wnext, ex_r))) {
-
+        if (closed[next.x][next.y] || !is_correct_cell(next, initial)) {
             continue;
         }
+
+        const MyLivingUnit *obst = nullptr;
+        if (!first && !m_i->ew->check_no_collision(wnext, my_radius, &obst)) {
+            if (!obst || (obst && obst->getType() != MyLivingUnit::TREE)) {
+                continue;
+            }
+        }
         first = false;
+
 
         //Check for goal
         const geom::Vec2D dist = to - wnext;
@@ -408,6 +388,8 @@ std::list<geom::Point2D> PathFinder::find_way(const geom::Point2D &to, double ra
         next = next->parent;
     }
 
+    smooth_path({m_i->s->getX(), m_i->s->getY()}, ret);
+
     //LOG("Way to point (%3.1lf, %3.1lf) %s. Vertexes visited %d\n",
     //    to.x,
     //    to.y,
@@ -436,7 +418,23 @@ bool PathFinder::update_cost(const geom::CellCoord &pt_from, const geom::CellCoo
     int dx = std::abs(pt_from.x - pt_to.x);
     int dy = std::abs(pt_from.y - pt_to.y);
     double mv_cost = D * (dx + dy) + (D2 - 2 * D) * std::min(dx, dy);
+
     mv_cost += mv_cost * m_damage_map->get_value(cell_to_world(pt_from)) * BehaviourConfig::pathfinder_damage_mult;
+
+    //Check tree in destination point
+    const MyLivingUnit *obst = nullptr;
+    auto wpto = cell_to_world(pt_to);
+    if (!m_i->ew->check_no_collision(wpto, m_i->s->getRadius(), &obst)) {
+        //Maybe it is tree
+        if (obst && obst->getType() == MyLivingUnit::TREE) {
+            int time_to_cut = (obst->getLife() / 12) * 60;
+            time_to_cut += m_i->s->getRemainingActionCooldownTicks();
+            const double my_speed = m_i->g->getWizardForwardSpeed() * m_i->ew->get_wizard_movement_factor(*m_i->s);
+            mv_cost += (time_to_cut * my_speed);
+        }
+    }
+
+
     const Cell &cfrom = m_map[pt_from.x][pt_from.y];
     Cell &cto = m_map[pt_to.x][pt_to.y];
 
@@ -450,4 +448,16 @@ bool PathFinder::update_cost(const geom::CellCoord &pt_from, const geom::CellCoo
 
 bool PathFinder::bonuses_is_under_control() const {
     return m_lane_push_status[m_current_lane] > 0.4 && m_lane_push_status[m_current_lane] < 0.82;
+}
+
+void PathFinder::smooth_path(const geom::Point2D &me, std::list<geom::Point2D> &path) const {
+    auto almost_last = path.cend();
+    --almost_last;
+    for (auto it = path.cbegin(); it != almost_last;) {
+        if (m_i->ew->line_of_sight(me.x, me.y, it->x, it->y)) {
+            it = path.erase(it);
+        } else {
+            break;
+        }
+    }
 }
