@@ -42,15 +42,15 @@ void SkillBuilder::try_level_up(model::Move &move) const {
 
 
     static const std::vector<Skill> build_test {
-        HASTE, HASTE, HASTE, HASTE, HASTE,
-        RANGE, RANGE, RANGE, RANGE, RANGE,
         FIRE, FIRE, FIRE, FIRE, FIRE,
         SHIELD, SHIELD, SHIELD, SHIELD, SHIELD,
+        HASTE, HASTE, HASTE, HASTE, HASTE,
+        RANGE, RANGE, RANGE, RANGE, RANGE,
         WATER, WATER, WATER, WATER,
     };
 
-    move.setSkillToLearn(learn_next_skill(m_build_idx == 0 ? build_mm : build_fireball));
-    //move.setSkillToLearn(learn_next_skill(build_test));
+    //move.setSkillToLearn(learn_next_skill(m_build_idx == 0 ? build_mm : build_fireball));
+    move.setSkillToLearn(learn_next_skill(build_test));
 
 
 }
