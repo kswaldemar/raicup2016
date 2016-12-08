@@ -238,11 +238,16 @@ Eviscerator::DestroyDesc Eviscerator::destroy(model::Move &move) {
             chosen = model::ACTION_STAFF;
         }
     }
-
+    static const double fireball_effective_dmg = 100;
     if (chosen == model::ACTION_NONE && has_fireball && cooldowns[model::ACTION_FIREBALL] == 0) {
         attack_range = m_i->s->getCastRange() + m_i->g->getFireballRadius() / 2.0;
         missile_radius = m_i->g->getFireballRadius();
-        if (distance <= attack_range && distance > m_i->g->getFireballExplosionMinDamageRange() + m_i->s->getRadius()) {
+        const auto fire_point = get_fireball_best_point();
+        const double mana_ratio = m_i->s->getMana() / m_i->s->getMaxMana();
+        if (fire_point.second >= fireball_effective_dmg || (fire_point.second >= 70 && mana_ratio > 0.7)) {
+            target_pt = fire_point.first;
+            VISUAL(fillCircle(target_pt.x, target_pt.y, 30, 0x41C6BF));
+            LOG("Fireball choosen, predicted damage = %3.1lf\n", fire_point.second);
             chosen = model::ACTION_FIREBALL;
         }
     }
@@ -274,6 +279,9 @@ Eviscerator::DestroyDesc Eviscerator::destroy(model::Move &move) {
     }
 
     if (chosen != model::ACTION_NONE && can_shoot) {
+        if (chosen == model::ACTION_FIREBALL) {
+            move.setMaxCastDistance(m_i->s->getDistanceTo(target_pt.x, target_pt.y));
+        }
         move.setAction(chosen);
     }
 
@@ -390,4 +398,174 @@ bool Eviscerator::can_leave_battlefield() const {
 
 const fields::FieldMap &Eviscerator::get_bullet_damage_map() const {
     return m_bullet_map;
+}
+
+std::pair<geom::Point2D, double> Eviscerator::get_fireball_best_point() const {
+    static const std::initializer_list<geom::Vec2D> shifts = {
+        {0,  -1},
+        {1,  -1},
+        {1,  0},
+        {1,  1},
+        {0,  1},
+        {-1, 1},
+        {-1, 0},
+        {-1, -1}
+    };
+
+    const double creep_effective_overlap = 10;
+    double max_damage = 0;
+    double damage = 0;
+    geom::Point2D best_pt;
+    geom::Point2D pt;
+    double dist;
+
+    const double cast_range = m_i->s->getCastRange();
+
+    for (const auto &target : m_i->ew->get_hostile_creeps()) {
+        dist = target->getRadius() + m_i->g->getFireballExplosionMinDamageRange() - creep_effective_overlap;
+        for (const auto &shift : shifts) {
+            pt.x = target->getX() + shift.x * dist;
+            pt.y = target->getY() + shift.y * dist;
+            const double to_me = m_i->s->getDistanceTo(pt.x, pt.y);
+            if (to_me > m_i->s->getRadius() + m_i->g->getFireballExplosionMinDamageRange() && to_me <= cast_range) {
+                damage = get_fireball_damage(pt);
+                if (damage > max_damage) {
+                    max_damage = damage;
+                    best_pt = pt;
+                }
+            }
+        }
+
+        dist = target->getRadius() + m_i->g->getFireballExplosionMaxDamageRange() - 1;
+        for (const auto &shift : shifts) {
+            pt.x = target->getX() + shift.x * dist;
+            pt.y = target->getY() + shift.y * dist;
+            const double to_me = m_i->s->getDistanceTo(pt.x, pt.y);
+            if (to_me > m_i->s->getRadius() + m_i->g->getFireballExplosionMinDamageRange() && to_me <= cast_range) {
+                damage = get_fireball_damage(pt);
+                if (damage > max_damage) {
+                    max_damage = damage;
+                    best_pt = pt;
+                }
+            }
+        }
+    }
+
+    for (const auto &target : m_i->ew->get_hostile_wizards()) {
+        dist = target->getRadius() + m_i->g->getFireballExplosionMaxDamageRange() - 10;
+        for (const auto &shift : shifts) {
+            pt.x = target->getX() + shift.x * dist;
+            pt.y = target->getY() + shift.y * dist;
+            damage = get_fireball_damage(pt);
+            const double to_me = m_i->s->getDistanceTo(pt.x, pt.y);
+            if (to_me > m_i->s->getRadius() + m_i->g->getFireballExplosionMinDamageRange() && to_me <= cast_range) {
+                if (damage > max_damage) {
+                    max_damage = damage;
+                    best_pt = pt;
+                }
+            }
+        }
+    }
+
+    for (const auto &target : m_i->ew->get_hostile_towers()) {
+        dist = target.getRadius() + m_i->g->getFireballExplosionMinDamageRange() - 0.1;
+        for (const auto &shift : shifts) {
+            pt.x = target.getX() + shift.x * dist;
+            pt.y = target.getY() + shift.y * dist;
+            damage = get_fireball_damage(pt);
+            const double to_me = m_i->s->getDistanceTo(pt.x, pt.y);
+            if (to_me > m_i->s->getRadius() + m_i->g->getFireballExplosionMinDamageRange() && to_me <= cast_range) {
+                if (damage > max_damage) {
+                    max_damage = damage;
+                    best_pt = pt;
+                }
+            }
+        }
+
+        dist = target.getRadius() + m_i->g->getFireballExplosionMaxDamageRange() - 0.1;
+        for (const auto &shift : shifts) {
+            pt.x = target.getX() + shift.x * dist;
+            pt.y = target.getY() + shift.y * dist;
+            damage = get_fireball_damage(pt);
+            const double to_me = m_i->s->getDistanceTo(pt.x, pt.y);
+            if (to_me > m_i->s->getRadius() + m_i->g->getFireballExplosionMinDamageRange() && to_me <= cast_range) {
+                if (damage > max_damage) {
+                    max_damage = damage;
+                    best_pt = pt;
+                }
+            }
+        }
+    }
+
+    return std::make_pair(best_pt, max_damage);
+}
+
+double Eviscerator::get_fireball_damage(const geom::Point2D &center) const {
+
+    static const double min_dmg_range = m_i->g->getFireballExplosionMinDamageRange();
+    static const double max_dmg_range = m_i->g->getFireballExplosionMaxDamageRange();
+    static const double max_dmg = m_i->g->getFireballExplosionMaxDamage();
+    static const double min_dmg = m_i->g->getFireballExplosionMinDamage();
+    static const double k = -(max_dmg - min_dmg) / (max_dmg_range - min_dmg_range);
+
+    static const auto fire_damage = [](double x,
+                                       double y,
+                                       double radius,
+                                       const geom::Point2D &fire_center) -> double {
+        double dist = geom::Vec2D(fire_center.x - x, fire_center.y - y).len();
+        dist -= radius;
+        if (dist > min_dmg_range) {
+            return 0;
+        } else if (dist < min_dmg_range && dist > max_dmg_range) {
+            return k * (dist - max_dmg_range) + max_dmg;
+        } else {
+            return max_dmg;
+        }
+    };
+
+    static const double tower_mult = 1.5;
+    static const double wizard_mult = 3.0;
+
+    geom::Vec2D dist;
+    double sqrrad;
+    double sum = 0;
+    double damage;
+    for (const auto &i : m_i->ew->get_hostile_creeps()) {
+        dist.x = center.x - i->getX();
+        dist.y = center.y - i->getY();
+        sqrrad = i->getRadius() + min_dmg_range;
+        if (dist.sqr() < sqrrad * sqrrad) {
+            damage = fire_damage(i->getX(), i->getY(), i->getRadius(), center);
+            damage += m_i->g->getBurningSummaryDamage();
+            damage = std::min<double>(damage, i->getLife());
+            sum += damage;
+        }
+    }
+
+    for (const auto &i : m_i->ew->get_hostile_towers()) {
+        dist = i.getPoint() - center;
+        sqrrad = i.getRadius() + min_dmg_range;
+        if (dist.sqr() < sqrrad * sqrrad) {
+            damage = fire_damage(i.getX(), i.getY(), i.getRadius(), center);
+            damage += m_i->g->getBurningSummaryDamage();
+            damage = std::min<double>(damage, i.getLife());
+            damage *= tower_mult;
+            sum += damage;
+        }
+    }
+
+    for (const auto &i : m_i->ew->get_hostile_wizards()) {
+        dist.x = center.x - i->getX();
+        dist.y = center.y - i->getY();
+        sqrrad = i->getRadius() + min_dmg_range;
+        if (dist.sqr() < sqrrad * sqrrad) {
+            damage = fire_damage(i->getX(), i->getY(), i->getRadius(), center);
+            damage += m_i->g->getBurningSummaryDamage();
+            damage = std::min<double>(damage, i->getLife());
+            damage *= wizard_mult;
+            sum += damage;
+        }
+    }
+
+    return sum;
 }

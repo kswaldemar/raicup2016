@@ -77,9 +77,13 @@ public:
 
     const fields::FieldMap &get_bullet_damage_map() const;
 
-    BulletHandler m_bhandler;
+    std::pair<geom::Point2D, double> get_fireball_best_point() const;
+
+    double get_fireball_damage(const geom::Point2D &center) const;
 
 private:
+    BulletHandler m_bhandler;
+
     const InfoPack *m_i;
     //Set up in choose enemy
     const EnemyDesc *m_target;
