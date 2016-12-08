@@ -97,11 +97,12 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
 
     }
 
-    if (danger_level <= BehaviourConfig::danger_bonus_earn_t
-        && (m_ev->can_leave_battlefield())
-        && m_pf->bonuses_is_under_control()) {
+    static bool go_for_bonus = false;
+    go_for_bonus = danger_level <= BehaviourConfig::danger_bonus_earn_t
+                   && m_ev->can_leave_battlefield()
+                   && (m_pf->bonuses_is_under_control() || go_for_bonus);
+    if (go_for_bonus) {
         //Here check for bonuses time and go to one of them
-        bool will_go = false;
         if (m_bhs[BH_EARN_BONUS].is_path_spoiled()) {
             const double my_speed = game.getWizardForwardSpeed() * m_i.ew->get_wizard_movement_factor(self);
             const double max_dist = 1600;
@@ -129,12 +130,14 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
                     best->getPoint(),
                     game.getBonusRadius() + 5
                 );
-                will_go = true;
+                go_for_bonus = true;
+            } else {
+                go_for_bonus = false;
             }
         }
 
         if (!m_bhs[BH_EARN_BONUS].is_path_spoiled()) {
-            will_go = true;
+            go_for_bonus = true;
             dir = m_bhs[BH_EARN_BONUS].get_next_direction(self);
             navigation.clear();
             navigation.add_field(std::make_unique<fields::LinearField>(
@@ -144,9 +147,10 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
                 BehaviourConfig::navigation_k.bonus,
                 -BehaviourConfig::navigation_k.bonus * nav_radius
             ));
+        } else {
+            go_for_bonus = false;
         }
-
-        if (will_go) {
+        if (go_for_bonus) {
             prev_action = current_action;
             current_action = BH_EARN_BONUS;
             hold_face = can_shoot;
@@ -328,31 +332,31 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     }
 #endif
 
-//
-//#ifdef RUNNING_LOCAL
-//    dir *= 3;
-//    VISUAL(line(self.getX(), self.getY(), self.getX() + dir.x, self.getY() + dir.y, 0xB325DA));
-//    char buf[10];
-//    char c = 'N';
-//    assert(current_action != BH_COUNT);
-//    switch (current_action) {
-//        case BH_MINIMIZE_DANGER:c = 'M';
-//            break;
-//        case BH_ATTACK:c = 'A';
-//            break;
-//        case BH_SCOUT:c = 'R';
-//            break;
-//        case BH_EARN_BONUS: c = 'B';
-//            break;
-//    }
-//    sprintf(buf, "%c %3.1lf%%", c, m_damage_map.get_value(self.getX(), self.getY()));
-//    VISUAL(text(self.getX() - 70, self.getY() - 60, buf, 0xFF0000));
-//    sprintf(buf, "[%5.5lf]", strategic_map.get_value(me));
-//    VISUAL(text(me.x - 70, me.y - 80, buf, 0xFF9900));
-//    //Vec2D spd{self.getSpeedX(), self.getSpeedY()};
-//    //sprintf(buf, "spd %3.1lf", spd.len());
-//    //VISUAL(text(self.getX(), self.getY() - 70, buf, 0x009911));
-//#endif
+    //
+    //#ifdef RUNNING_LOCAL
+    //    dir *= 3;
+    //    VISUAL(line(self.getX(), self.getY(), self.getX() + dir.x, self.getY() + dir.y, 0xB325DA));
+    //    char buf[10];
+    //    char c = 'N';
+    //    assert(current_action != BH_COUNT);
+    //    switch (current_action) {
+    //        case BH_MINIMIZE_DANGER:c = 'M';
+    //            break;
+    //        case BH_ATTACK:c = 'A';
+    //            break;
+    //        case BH_SCOUT:c = 'R';
+    //            break;
+    //        case BH_EARN_BONUS: c = 'B';
+    //            break;
+    //    }
+    //    sprintf(buf, "%c %3.1lf%%", c, m_damage_map.get_value(self.getX(), self.getY()));
+    //    VISUAL(text(self.getX() - 70, self.getY() - 60, buf, 0xFF0000));
+    //    sprintf(buf, "[%5.5lf]", strategic_map.get_value(me));
+    //    VISUAL(text(me.x - 70, me.y - 80, buf, 0xFF9900));
+    //    //Vec2D spd{self.getSpeedX(), self.getSpeedY()};
+    //    //sprintf(buf, "spd %3.1lf", spd.len());
+    //    //VISUAL(text(self.getX(), self.getY() - 70, buf, 0x009911));
+    //#endif
 
 
     VISUAL(endPost());
@@ -531,7 +535,6 @@ void MyStrategy::update_damage_map() {
         } else {
             d1 = 0;
         }
-
 
 
         if (!eps_equal(d1, at_range)) {
