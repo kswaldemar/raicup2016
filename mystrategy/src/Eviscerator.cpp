@@ -533,7 +533,7 @@ double Eviscerator::get_fireball_damage(const geom::Point2D &center) const {
     for (const auto &i : m_i->ew->get_hostile_creeps()) {
         dist.x = center.x - i->getX();
         dist.y = center.y - i->getY();
-        sqrrad = i->getRadius() + min_dmg_range;
+        sqrrad = i->getRadius() + min_dmg_range - 10;
         if (dist.sqr() < sqrrad * sqrrad) {
             damage = fire_damage(i->getX(), i->getY(), i->getRadius(), center);
             damage += m_i->g->getBurningSummaryDamage();
@@ -544,7 +544,7 @@ double Eviscerator::get_fireball_damage(const geom::Point2D &center) const {
 
     for (const auto &i : m_i->ew->get_hostile_towers()) {
         dist = i.getPoint() - center;
-        sqrrad = i.getRadius() + min_dmg_range;
+        sqrrad = i.getRadius() + min_dmg_range - 0.1;
         if (dist.sqr() < sqrrad * sqrrad) {
             damage = fire_damage(i.getX(), i.getY(), i.getRadius(), center);
             damage += m_i->g->getBurningSummaryDamage();
@@ -557,7 +557,7 @@ double Eviscerator::get_fireball_damage(const geom::Point2D &center) const {
     for (const auto &i : m_i->ew->get_hostile_wizards()) {
         dist.x = center.x - i->getX();
         dist.y = center.y - i->getY();
-        sqrrad = i->getRadius() + min_dmg_range;
+        sqrrad = i->getRadius() + min_dmg_range - 30;
         if (dist.sqr() < sqrrad * sqrrad) {
             damage = fire_damage(i->getX(), i->getY(), i->getRadius(), center);
             damage += m_i->g->getBurningSummaryDamage();
