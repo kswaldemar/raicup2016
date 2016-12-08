@@ -56,3 +56,11 @@ int MyLivingUnit::getMaxLife() const {
 geom::Point2D MyLivingUnit::getPoint() const {
     return {m_x, m_y};
 }
+
+bool MyLivingUnit::isStatic() const {
+    return m_type == TREE || m_type == TOWER;
+}
+
+bool MyLivingUnit::isDynamic() const {
+    return m_type == WIZARD || m_type == MINION;
+}

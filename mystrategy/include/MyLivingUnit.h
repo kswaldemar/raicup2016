@@ -11,8 +11,10 @@ class MyLivingUnit {
 public:
 
     enum Type {
-        STATIC, ///< Cannot move by definition (tree or building)
-        DYNAMIC, ///< Anything else
+        TOWER,
+        TREE,
+        MINION,
+        WIZARD,
         TYPES_COUNT,
     };
 
@@ -35,6 +37,10 @@ public:
     int getLife() const;
 
     int getMaxLife() const;
+
+    bool isStatic() const;
+
+    bool isDynamic() const;
 
 protected:
     Type m_type;

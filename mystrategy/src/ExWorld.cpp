@@ -81,21 +81,21 @@ void ExWorld::update_obstacles_and_fov(const World &world)  {
     m_obstacles.clear();
     m_fov.clear();
     for (const auto &i : world.getMinions()) {
-        m_obstacles.emplace_back(MyLivingUnit::DYNAMIC, i);
+        m_obstacles.emplace_back(MyLivingUnit::MINION, i);
         if (i.getFaction() == my_faction) {
             m_fov.emplace_back(geom::Point2D{i.getX(), i.getY()}, i.getVisionRange());
         }
     }
     for (const auto &i : world.getWizards()) {
         if (!i.isMe()) {
-            m_obstacles.emplace_back(MyLivingUnit::DYNAMIC, i);
+            m_obstacles.emplace_back(MyLivingUnit::WIZARD, i);
         }
         if (i.getFaction() == my_faction) {
             m_fov.emplace_back(geom::Point2D{i.getX(), i.getY()}, i.getVisionRange());
         }
     }
     for (const auto &i : world.getBuildings()) {
-        m_obstacles.emplace_back(MyLivingUnit::STATIC, i);
+        m_obstacles.emplace_back(MyLivingUnit::TOWER, i);
         if (i.getFaction() == my_faction) {
             m_fov.emplace_back(geom::Point2D{i.getX(), i.getY()}, i.getVisionRange());
         }
@@ -104,7 +104,7 @@ void ExWorld::update_obstacles_and_fov(const World &world)  {
     std::set<int64_t> visible_trees;
     for (const auto &i : world.getTrees()) {
         if (m_known_trees.find(i.getId()) == m_known_trees.cend()) {
-            m_trees.emplace_back(MyLivingUnit::STATIC, i);
+            m_trees.emplace_back(MyLivingUnit::TREE, i);
             m_known_trees.insert(i.getId());
         }
         visible_trees.insert(i.getId());
@@ -137,7 +137,7 @@ void ExWorld::update_canvas(const geom::Point2D &origin) {
         t.y += m_im_draw.MAP_SIZE / 2;
         auto translated = m_im_draw.to_internal(t.x, t.y);
         if (m_im_draw.is_correct_point(translated)) {
-            int radius = m_im_draw.to_internal(i.getRadius() + 35 - m_im_draw.GRID_SIZE);
+            int radius = m_im_draw.to_internal(i.getRadius() + 35/* - m_im_draw.GRID_SIZE*/);
             m_im_draw.draw_circle(translated, radius);
         }
     }

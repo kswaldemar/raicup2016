@@ -51,8 +51,6 @@ public:
 
     void each_tick_update(const model::Wizard &self, const model::World &world, const model::Game &game);
 
-    void smooth_path(const geom::Point2D &me, std::list<geom::Point2D> &path);
-
 private:
     InfoPack m_i;
     std::unique_ptr<PathFinder> m_pf;

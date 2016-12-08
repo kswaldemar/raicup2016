@@ -40,7 +40,6 @@ public:
 
     PathFinder(const InfoPack &info);
 
-
     void update_info(const InfoPack &info, const fields::FieldMap &danger_map);
 
     geom::Point2D get_next_waypoint();
@@ -67,6 +66,8 @@ public:
     geom::Point2D bottom_lane_projection(const geom::Point2D &me, int shift, double *battle_front = nullptr);
 
     model::LaneType get_lane_by_coord(geom::Point2D pt) const;
+
+    void smooth_path(const geom::Point2D &me, std::list<geom::Point2D> &path) const;
 
 private:
 
