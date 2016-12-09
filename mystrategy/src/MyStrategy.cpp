@@ -1,5 +1,5 @@
-#include "FieldsDescription.h"
 #include "MyStrategy.h"
+#include "FieldsDescription.h"
 #include "PathFinder.h"
 #include "Logger.h"
 #include "VisualDebug.h"
@@ -17,7 +17,6 @@ BehaviourConfig::Damage BehaviourConfig::damage = BehaviourConfig::Damage();
 BehaviourConfig::NavK BehaviourConfig::navigation_k = BehaviourConfig::NavK();
 BehaviourConfig::BulletF BehaviourConfig::bullet = BehaviourConfig::BulletF();
 BehaviourConfig::Targeting BehaviourConfig::targeting = BehaviourConfig::Targeting();
-
 
 MyStrategy::MyStrategy() {
 }
@@ -73,15 +72,11 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
         prev_action = current_action;
         current_action = BH_ATTACK;
         auto description = m_ev->destroy(move);
-        if (self.getDistanceTo(*description.unit) >= description.att_range) {
-            m_bhs[BH_ATTACK].update_target(*description.unit);
+        if (self.getDistanceTo(description.pt.x, description.pt.y) >= description.att_range) {
+            m_bhs[BH_ATTACK].update_target(description.pt);
             if (m_bhs[BH_ATTACK].is_path_spoiled()) {
-                auto way = m_pf->find_way({description.unit->getX(), description.unit->getY()},
-                                          description.att_range - PathFinder::GRID_SIZE);
-                m_bhs[BH_ATTACK].load_path(
-                    std::move(way),
-                    *description.unit
-                );
+                auto way = m_pf->find_way(description.pt, description.att_range - PathFinder::GRID_SIZE);
+                m_bhs[BH_ATTACK].load_path(std::move(way), description.pt);
             }
             dir = m_bhs[BH_ATTACK].get_next_direction(self);
             navigation.add_field(std::make_unique<fields::LinearField>(
@@ -91,10 +86,9 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
                 BehaviourConfig::navigation_k.attack,
                 -BehaviourConfig::navigation_k.attack * nav_radius
             ));
-        } else if (self.getDistanceTo(*description.unit) <= description.att_range) {
+        } else if (self.getDistanceTo(description.pt.x, description.pt.y) <= description.att_range) {
             current_action = BH_MINIMIZE_DANGER;
         }
-
     }
 
     static bool go_for_bonus = false;
@@ -123,12 +117,11 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             }
 
             if (best != nullptr) {
-                m_bhs[BH_EARN_BONUS].update_target(best->getPoint(), game.getBonusRadius() + 5);
+                m_bhs[BH_EARN_BONUS].update_target(best->getPoint());
                 auto way = m_pf->find_way(best->getPoint(), game.getBonusRadius() + 5);
                 m_bhs[BH_EARN_BONUS].load_path(
                     std::move(way),
-                    best->getPoint(),
-                    game.getBonusRadius() + 5
+                    best->getPoint()
                 );
                 go_for_bonus = true;
             } else {
@@ -169,20 +162,19 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     }
 
     geom::Point2D waypoint{0, 0};
-
+    //
     if (danger_level <= BehaviourConfig::danger_scout_t && current_action == BH_COUNT) {
         //Move by waypoints
         prev_action = current_action;
         current_action = BH_SCOUT;
         Vec2D wp_next = m_pf->get_next_waypoint();
         VISUAL(circle(wp_next.x, wp_next.y, PathFinder::WAYPOINT_RADIUS, 0x001111));
-        m_bhs[BH_SCOUT].update_target(wp_next, PathFinder::WAYPOINT_RADIUS);
+        m_bhs[BH_SCOUT].update_target(wp_next);
         if (m_bhs[BH_SCOUT].is_path_spoiled()) {
             auto way = m_pf->find_way(wp_next, PathFinder::WAYPOINT_RADIUS - PathFinder::GRID_SIZE);
             m_bhs[BH_SCOUT].load_path(
                 std::move(way),
-                wp_next,
-                PathFinder::WAYPOINT_RADIUS
+                wp_next
             );
         }
         dir = m_bhs[BH_SCOUT].get_next_direction(self);
@@ -222,11 +214,10 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             if (m_bhs[BH_MINIMIZE_DANGER].is_path_spoiled() && not_moved) {
                 //Possibly stuck in place
                 auto way = m_pf->find_way(wp_prev, PathFinder::WAYPOINT_RADIUS - PathFinder::GRID_SIZE);
-                m_bhs[BH_MINIMIZE_DANGER].update_target(wp_prev, PathFinder::WAYPOINT_RADIUS);
+                m_bhs[BH_MINIMIZE_DANGER].update_target(wp_prev);
                 m_bhs[BH_MINIMIZE_DANGER].load_path(
                     std::move(way),
-                    wp_prev,
-                    PathFinder::WAYPOINT_RADIUS
+                    wp_prev
                 );
             }
 
@@ -243,6 +234,18 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
             }
         }
     }
+
+    //static int last_hp = self.getLife();
+    //if (self.getLife() < last_hp) {
+    //    LOG("Hurt was on tick %d\n", world.getTickIndex() - 1);
+    //}
+    //last_hp = self.getLife();
+    //
+    //
+    //static geom::Point2D initial = me;
+    //navigation.add_field(std::make_unique<fields::LinearField>(
+    //    initial, 0, 300, 0.0001, -0.03
+    //));
 
 
     const auto &bullets_map = m_ev->get_bullet_damage_map();

@@ -16,13 +16,13 @@ public:
 
     bool is_path_spoiled();
 
-    void update_target(const geom::Point2D &center, double radius);
+    void update_target(const geom::Point2D &center);
 
     void update_target(const model::CircularUnit &unit);
 
     void update_clock(int tick);
 
-    void load_path(std::list<geom::Point2D> &&path, const geom::Point2D &center, double radius);
+    void load_path(std::list<geom::Point2D> &&path, const geom::Point2D &center);
 
     void load_path(std::list<geom::Point2D> &&path, const model::CircularUnit &unit);
 
@@ -33,7 +33,6 @@ private:
 
     struct TgDesc {
         geom::Point2D center;
-        double radius;
     };
 
     TgDesc m_initial;

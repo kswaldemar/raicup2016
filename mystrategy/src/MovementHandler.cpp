@@ -13,26 +13,23 @@ bool MovementHandler::is_path_spoiled() {
     return dist.sqr() >= (MAX_TARGET_MOVEMENT * MAX_TARGET_MOVEMENT);
 }
 
-void MovementHandler::update_target(const geom::Point2D &center, double radius) {
+void MovementHandler::update_target(const geom::Point2D &center) {
     m_actual.center = center;
-    m_actual.radius = radius;
 }
 
 void MovementHandler::update_target(const model::CircularUnit &unit) {
     m_actual.center = {unit.getX(), unit.getY()};
-    m_actual.radius = unit.getRadius();
 }
 
 void MovementHandler::update_clock(int tick) {
     m_current_tick = tick;
 }
 
-void MovementHandler::load_path(std::list<geom::Point2D> &&path, const geom::Point2D &center, double radius) {
+void MovementHandler::load_path(std::list<geom::Point2D> &&path, const geom::Point2D &center) {
     m_path = std::move(path);
     m_it = m_path.cbegin();
     m_update_tick = m_current_tick;
     m_initial.center = center;
-    m_initial.radius = radius;
 }
 
 void MovementHandler::load_path(std::list<geom::Point2D> &&path, const model::CircularUnit &unit) {
@@ -40,7 +37,6 @@ void MovementHandler::load_path(std::list<geom::Point2D> &&path, const model::Ci
     m_it = m_path.cbegin();
     m_update_tick = m_current_tick;
     m_initial.center = {unit.getX(), unit.getY()};
-    m_initial.radius = unit.getRadius();
 }
 
 geom::Vec2D MovementHandler::get_next_direction(const geom::Point2D &self) {

@@ -72,10 +72,11 @@ void Eviscerator::update_info(const InfoPack &info) {
     const geom::Point2D me{m_i->s->getX(), m_i->s->getY()};
     const double my_radius = m_i->s->getRadius();
     const double my_speed = m_i->g->getWizardBackwardSpeed() * m_i->ew->get_wizard_movement_factor(*m_i->s);
+    const double bullet_extra_radius = 1;
     for (const auto &i : m_bhandler.get_bullets()) {
         auto hds = BulletHandler::calc_hit_description(i, me, my_radius);
 
-        const double k = (BehaviourConfig::bullet.missile / (my_radius + i.radius + 1)) / 2.0;
+        const double k = (BehaviourConfig::bullet.missile / (my_radius + i.radius + bullet_extra_radius)) / 2.0;
         bool create = true;
 
         if (hds.ticks > 0) {
@@ -90,10 +91,11 @@ void Eviscerator::update_info(const InfoPack &info) {
 
         if (create) {
             m_bullet_map.add_field(std::make_unique<fields::LinearField>(
-                hds.hit_pt, 0, my_radius + i.radius + 1,
+                hds.hit_pt, 0, my_radius + i.radius + bullet_extra_radius,
                 -k, BehaviourConfig::bullet.missile
             ));
         }
+        //LOG("Tick %d; ticks = %d; distance = %3.5lf; Create bullet field = %d;\n", m_i->w->getTickIndex(), hds.ticks, hds.dist, create);
     }
 }
 
@@ -219,7 +221,8 @@ Eviscerator::DestroyDesc Eviscerator::destroy(model::Move &move) {
     VISUAL(circle(unit.getX(), unit.getY(), min_range, 0x004400));
     VISUAL(circle(unit.getX(), unit.getY(), 700, 0x008800));
 
-    double distance = m_i->s->getDistanceTo(unit) - unit.getRadius();
+    double distance = m_i->s->getDistanceTo(target_pt.x, target_pt.y);
+    //double distance = m_i->s->getDistanceTo(unit) - unit.getRadius();
 
     const auto &skills = m_i->s->getSkills();
     const auto &cooldowns = m_i->s->getRemainingCooldownTicksByAction();
@@ -232,39 +235,68 @@ Eviscerator::DestroyDesc Eviscerator::destroy(model::Move &move) {
     double missile_radius = 0;
     model::ActionType chosen = model::ACTION_NONE;
 
-    if (chosen == model::ACTION_NONE && cooldowns[model::ACTION_STAFF] == 0) {
-        attack_range = m_i->g->getStaffRange();
-        if (distance <= attack_range) {
-            chosen = model::ACTION_STAFF;
-        }
-    }
     static const double fireball_effective_dmg = 100;
-    if (chosen == model::ACTION_NONE && has_fireball && cooldowns[model::ACTION_FIREBALL] == 0) {
-        attack_range = m_i->s->getCastRange() + m_i->g->getFireballRadius() / 2.0;
+    double ang;
+    int time;
+    if (chosen == model::ACTION_NONE && has_fireball) {
         missile_radius = m_i->g->getFireballRadius();
         const auto fire_point = get_fireball_best_point();
         const double mana_ratio = m_i->s->getMana() / m_i->s->getMaxMana();
         if (fire_point.second >= fireball_effective_dmg || (fire_point.second >= 70 && mana_ratio > 0.7)) {
-            target_pt = fire_point.first;
-            VISUAL(fillCircle(target_pt.x, target_pt.y, 30, 0x41C6BF));
+            auto pt = fire_point.first;
+            VISUAL(fillCircle(pt.x, pt.y, 30, 0x41C6BF));
             LOG("Fireball choosen, predicted damage = %3.1lf\n", fire_point.second);
-            chosen = model::ACTION_FIREBALL;
+            ang = m_i->s->getAngleTo(pt.x, pt.y);
+            time = static_cast<int>(ceil(std::abs(ang) / m_i->g->getWizardMaxTurnAngle()));
+            if (cooldowns[model::ACTION_FIREBALL] - time < 1) {
+                chosen = model::ACTION_FIREBALL;
+                target_pt = pt;
+                distance = m_i->s->getDistanceTo(target_pt.x, target_pt.y);
+            }
         }
     }
 
-    if (chosen == model::ACTION_NONE && has_frostbolt && cooldowns[model::ACTION_FROST_BOLT] == 0) {
-        attack_range = m_i->s->getCastRange();
-        missile_radius = m_i->g->getFrostBoltRadius();
-        if (distance <= attack_range) {
-            chosen = model::ACTION_FROST_BOLT;
-        }
-    }
+    //if (chosen == model::ACTION_NONE && has_frostbolt && cooldowns[model::ACTION_FROST_BOLT] == 0) {
+    //    attack_range = m_i->s->getCastRange();
+    //    missile_radius = m_i->g->getFrostBoltRadius();
+    //    if (distance <= attack_range) {
+    //        chosen = model::ACTION_FROST_BOLT;
+    //    }
+    //}
 
-    if (chosen == model::ACTION_NONE && cooldowns[model::ACTION_MAGIC_MISSILE] == 0) {
+    if (chosen == model::ACTION_NONE) {
         attack_range = m_i->s->getCastRange();
         missile_radius = m_i->g->getMagicMissileRadius();
-        if (distance <= attack_range) {
+        ang = m_i->s->getAngleTo(target_pt.x, target_pt.y);
+        time = static_cast<int>(ceil(std::abs(ang) / m_i->g->getWizardMaxTurnAngle()));
+        if (distance <= attack_range + unit.getRadius() && cooldowns[model::ACTION_MAGIC_MISSILE] - time < 1) {
             chosen = model::ACTION_MAGIC_MISSILE;
+        }
+    }
+
+    if (chosen == model::ACTION_NONE) {
+        //Force use staff
+        const double sq_dist = 200 * 200;
+        const EnemyDesc *best = nullptr;
+        geom::Vec2D d;
+        double min_sqrdist = sq_dist;
+        for (const auto &i : m_possible_targets) {
+            d.x = i.unit->getX() - m_i->s->getX();
+            d.y = i.unit->getY() - m_i->s->getY();
+            if (d.sqr() < min_sqrdist) {
+                best = &i;
+                min_sqrdist = d.sqr();
+            }
+        }
+        if (best) {
+            target_pt.x = best->unit->getX();
+            target_pt.y = best->unit->getY();
+            distance = d.len();
+            VISUAL(fillCircle(target_pt.x, target_pt.y, 7, 0x006600));
+            min_range = best->unit->getRadius() + m_i->g->getStaffRange();
+            if (distance <= min_range) {
+                chosen = model::ACTION_STAFF;
+            }
         }
     }
 
@@ -297,7 +329,7 @@ Eviscerator::DestroyDesc Eviscerator::destroy(model::Move &move) {
         }
     }
 
-    return {m_target->unit, min_range};
+    return {target_pt, min_range};
 }
 
 void Eviscerator::destroy(model::Move &move, const geom::Point2D &center, double radius) const {
@@ -392,7 +424,6 @@ bool Eviscerator::is_minion_attack_me(const model::Minion &creep) const {
 }
 
 bool Eviscerator::can_leave_battlefield() const {
-    //TODO: Check that there is no tower which can be destroyed
     return m_possible_targets.empty() || m_possible_targets.front().score < BehaviourConfig::targeting.can_leave;
 }
 

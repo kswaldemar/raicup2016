@@ -43,7 +43,7 @@ class Eviscerator {
 public:
 
     struct DestroyDesc {
-        const model::LivingUnit *unit;
+        geom::Point2D pt;
         double att_range;
     };
 

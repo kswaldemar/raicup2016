@@ -118,7 +118,8 @@ BulletHandler::calc_hit_description(const BulletDesc &bullet, const geom::Point2
     if (angle > pi / 2) {
         //Out of bullet range
         ret.ticks = -1;
-        ret.dist = -1;
+        ret.dist = a_len;
+        ret.hit_pt = bullet.cur_pos;
         hit = false;
     } else {
         const double sina = sqrt(1.0 - cosa * cosa);
