@@ -256,7 +256,7 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
     }
 
     //Check tree blocking way
-    const MyLivingUnit *block_obstacle;
+    const MyLivingUnit *block_obstacle = nullptr;
     bool destroy_obstacle = false;
     if ((waypoint.x > 0 && waypoint.y > 0
          && !m_i.ew->check_no_collision(waypoint, self.getRadius(), &block_obstacle)) // Obstacle blocking way
