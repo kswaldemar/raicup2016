@@ -34,6 +34,11 @@ PathFinder::PathFinder(const InfoPack &info) {
         default:break;
     }
 
+    if (info.g->isRawMessagesEnabled()) {
+        //Final mode
+        m_current_lane = model::LANE_MIDDLE;
+    }
+
     m_last_wp[model::LANE_TOP] = {200, map_size - 800 - WAYPOINT_RADIUS};
     m_last_wp[model::LANE_MIDDLE] = {900 + WAYPOINT_RADIUS, map_size - 900 - WAYPOINT_RADIUS};
     m_last_wp[model::LANE_BOTTOM] = {800 + WAYPOINT_RADIUS, map_size - 200};
@@ -449,7 +454,12 @@ bool PathFinder::update_cost(const geom::CellCoord &pt_from, const geom::CellCoo
 }
 
 bool PathFinder::bonuses_is_under_control() const {
-    return m_lane_push_status[m_current_lane] > 0.4 && m_lane_push_status[m_current_lane] < 0.82;
+    static double up_lim = 0.82;
+    if (m_i->g->isRawMessagesEnabled()) {
+        //Final, go to enemy base, forgot about bonuses
+        up_lim = 0.6;
+    }
+    return m_lane_push_status[m_current_lane] > 0.4 && m_lane_push_status[m_current_lane] < up_lim;
 }
 
 void PathFinder::smooth_path(const geom::Point2D &me, std::list<geom::Point2D> &path) const {

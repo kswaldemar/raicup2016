@@ -209,11 +209,11 @@ Eviscerator::DestroyDesc Eviscerator::destroy(model::Move &move) {
 
     //Change aim point to hit if it moving forward
     geom::Point2D target_pt = {unit.getX(), unit.getY()};
-    if (m_target->type == EnemyDesc::Type::WIZARD) {
-        geom::Vec2D shift = geom::sincos(unit.getAngle());
-        shift *= 8.0;
-        target_pt += shift;
-    }
+    //if (m_target->type == EnemyDesc::Type::WIZARD) {
+    //    geom::Vec2D shift = geom::sincos(unit.getAngle());
+    //    shift *= 8.0;
+    //    target_pt += shift;
+    //}
 
 
     VISUAL(line(m_i->s->getX(), m_i->s->getY(), target_pt.x, target_pt.y, 0x0000FF));
@@ -294,7 +294,7 @@ Eviscerator::DestroyDesc Eviscerator::destroy(model::Move &move) {
             distance = d.len();
             VISUAL(fillCircle(target_pt.x, target_pt.y, 7, 0x006600));
             min_range = best->unit->getRadius() + m_i->g->getStaffRange();
-            if (distance <= min_range) {
+            if (distance < min_range) {
                 chosen = model::ACTION_STAFF;
             }
         }
@@ -555,6 +555,7 @@ double Eviscerator::get_fireball_damage(const geom::Point2D &center) const {
     };
 
     static const double tower_mult = 1.5;
+    static const double base_mult = 2.5;
     static const double wizard_mult = 3.0;
 
     geom::Vec2D dist;
@@ -580,7 +581,11 @@ double Eviscerator::get_fireball_damage(const geom::Point2D &center) const {
             damage = fire_damage(i.getX(), i.getY(), i.getRadius(), center);
             damage += m_i->g->getBurningSummaryDamage();
             damage = std::min<double>(damage, i.getLife());
-            damage *= tower_mult;
+            if (i.getMaxLife() == m_i->g->getFactionBaseLife()) {
+                damage *= base_mult;
+            } else {
+                damage *= tower_mult;
+            }
             sum += damage;
         }
     }

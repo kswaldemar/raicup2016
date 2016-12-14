@@ -297,9 +297,9 @@ void MyStrategy::move(const Wizard &self, const World &world, const Game &game, 
 
     visualise_field_maps(
         {
-            //&m_damage_map,
+            &m_damage_map,
             //&navigation,
-            &bullets_map,
+            //&bullets_map,
         },
         me
     );
@@ -508,7 +508,7 @@ void MyStrategy::update_damage_map() {
     const double my_speed = m_i.g->getWizardBackwardSpeed() * m_i.ew->get_wizard_movement_factor(*m_i.s);
     const double my_radius = m_i.s->getRadius();
 
-    const double life_factor = m_i.s->getLife() / m_i.s->getMaxLife();
+    const double life_factor = 1.0 - m_i.s->getLife() / m_i.s->getMaxLife();
     const double klife = 1.0 + life_factor;
 
     for (const auto &i : m_i.ew->get_hostile_creeps()) {
@@ -591,6 +591,11 @@ void MyStrategy::update_damage_map() {
         } else {
             force = BehaviourConfig::damage.tower;
         }
+
+        if (m_i.g->isRawMessagesEnabled()) {
+            force = BehaviourConfig::damage.tower * 0.6;
+        }
+
         force *= klife;
 
         const double retr_diff = i.getRemainingActionCooldownTicks() * my_speed;
@@ -670,6 +675,7 @@ fields::FieldMap MyStrategy::create_danger_map() {
     const int my_life = m_i.s->getLife();
     const double my_max_life = m_i.s->getMaxLife();
     //TODO: Respect self shield
+
 
     for (const auto &i : m_i.ew->get_hostile_towers()) {
         DangerField::Config conf = {
